@@ -1,0 +1,30 @@
+# Личное: записи, голоса, словарь, проекты, цвета людей, настройки, результаты сравнений
+Записи/
+Голоса/
+results/
+Словарь.txt
+Проекты.json
+Цвета.json
+app/settings.json
+app/voice_mean.npy
+app/editor_cwd/
+app/.ui-profile/
+CLAUDE.md
+
+# Тяжёлое и чужое: модели, Python, инструменты, скачанные исходники, копии
+.venv/
+models/
+tools/
+downloads/
+backups/
+
+# Skype для бизнеса: библиотеки Microsoft не распространяем, .exe собирается из SkypeProbe.cs
+app/skype/*.dll
+app/skype/*.exe
+
+# Служебное
+__pycache__/
+*.pyc
+.claude/
+.DS_Store
+*.dmg

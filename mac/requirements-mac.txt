@@ -1,0 +1,9 @@
+# Qamyal на macOS (Apple Silicon): то, без чего не откроется окно и не пойдёт запись (~50 МБ).
+# Распознавание — requirements-speech.txt: его качает кнопка «Скачать» в Настройках (или install.sh).
+bottle==0.13.4
+numpy==2.4.6
+soundfile==0.14.0
+soundcard==0.4.6
+python-docx==1.2.0
+imageio-ffmpeg
+truststore==0.10.5

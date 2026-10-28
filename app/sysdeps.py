@@ -1,0 +1,220 @@
+"""Всё, что отличается в Windows и macOS: процессы, сон, уведомления, открытие файлов, пути к программам.
+Остальной код зовёт только эти функции и не проверяет систему сам."""
+import os
+import shutil
+import subprocess
+import sys
+from pathlib import Path
+
+IS_WIN = sys.platform == "win32"
+IS_MAC = sys.platform == "darwin"
+
+# subprocess без мелькающего чёрного окна (в Windows); в macOS окна у консольных программ и так нет
+HIDDEN = {"creationflags": 0x08000000} if IS_WIN else {}
+
+
+def pid_alive(pid: int) -> bool:
+    if not pid:
+        return False
+    if IS_WIN:
+        import ctypes
+        k = ctypes.windll.kernel32
+        h = k.OpenProcess(0x1000, False, pid)  # PROCESS_QUERY_LIMITED_INFORMATION
+        if not h:
+            return False
+        code = ctypes.c_ulong()
+        ok = k.GetExitCodeProcess(h, ctypes.byref(code))
+        k.CloseHandle(h)
+        return bool(ok) and code.value == 259  # STILL_ACTIVE
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    return True
+
+
+def gui_python() -> str:
+    """Python без консольного окна: pythonw в Windows, обычный в macOS."""
+    if IS_WIN:
+        return str(Path(sys.executable).with_name("pythonw.exe"))
+    return sys.executable
+
+
+def pipe_python() -> str:
+    """Python для дочернего процесса на трубах stdin/stdout: python.exe в Windows (у pythonw их может не быть)."""
+    if IS_WIN:
+        return str(Path(sys.executable).with_name("python.exe"))
+    return sys.executable
+
+
+def spawn_detached(args: list, cwd: Path) -> None:
+    """Процесс, который живёт сам по себе (обработчик очереди переживает закрытие окна)."""
+    if IS_WIN:
+        subprocess.Popen(args, cwd=cwd, creationflags=0x08000000 | 0x00000008, close_fds=True)
+    else:
+        subprocess.Popen(args, cwd=cwd, start_new_session=True, close_fds=True,
+                         stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+
+_caffeinate = [None]
+
+
+def keep_awake(on: bool) -> None:
+    """Не даём компьютеру уснуть, пока идёт обработка (экран может гаснуть)."""
+    if IS_WIN:
+        import ctypes
+        ES_CONTINUOUS, ES_SYSTEM_REQUIRED = 0x80000000, 0x00000001
+        ctypes.windll.kernel32.SetThreadExecutionState(ES_CONTINUOUS | (ES_SYSTEM_REQUIRED if on else 0))
+    elif IS_MAC:
+        p = _caffeinate[0]
+        if on and (p is None or p.poll() is not None):
+            # -i: не засыпать от бездействия; -w: сам выключится, если наш процесс завершится
+            _caffeinate[0] = subprocess.Popen(["/usr/bin/caffeinate", "-i", "-w", str(os.getpid())])
+        elif not on and p is not None:
+            p.terminate()
+            _caffeinate[0] = None
+
+
+def low_priority() -> None:
+    """Пониженный приоритет: окно программы и диктофон не должны тормозить."""
+    if IS_WIN:
+        import ctypes
+        k = ctypes.windll.kernel32
+        k.SetPriorityClass(k.GetCurrentProcess(), 0x00004000)  # BELOW_NORMAL_PRIORITY_CLASS
+    else:
+        try:
+            os.nice(10)
+        except OSError:
+            pass
+
+
+def _osa(text: str) -> str:
+    return '"' + text.replace("\\", "\\\\").replace('"', '\\"') + '"'
+
+
+def notify(title: str, text: str, target: Path = None, icon: Path = None) -> None:
+    """Системное уведомление; в Windows щелчок по нему открывает target."""
+    if IS_WIN:
+        from winotify import Notification
+        Notification(app_id="Qamyal", title=title, msg=text, launch=str(target or ""),
+                     icon=str(icon or "")).show()
+    elif IS_MAC:
+        subprocess.run(["/usr/bin/osascript", "-e", f"display notification {_osa(text)} with title {_osa(title)}"],
+                       capture_output=True, timeout=10)
+
+
+def open_path(path: Path) -> None:
+    """Открыть файл или папку программой по умолчанию (Word, Finder/Проводник)."""
+    if IS_WIN:
+        os.startfile(str(path))
+    elif IS_MAC:
+        subprocess.Popen(["/usr/bin/open", str(path)])
+    else:
+        subprocess.Popen(["xdg-open", str(path)])
+
+
+def open_console(args: list, title: str) -> None:
+    """Видимое окно терминала с командой (например, вход в ChatGPT — пользователь видит, что происходит)."""
+    if IS_WIN:
+        subprocess.Popen(["cmd", "/c", f"title {title} & " + subprocess.list2cmdline(args) +
+                          " & echo. & echo Можно закрыть это окно. & pause"],
+                         creationflags=subprocess.CREATE_NEW_CONSOLE)
+    elif IS_MAC:
+        import shlex
+        cmd = " ".join(shlex.quote(a) for a in args)
+        subprocess.Popen(["/usr/bin/osascript", "-e", f'tell application "Terminal" to do script {_osa(cmd)}',
+                          "-e", 'tell application "Terminal" to activate'])
+
+
+def find_program(name: str, extra: list = ()) -> str:
+    """Путь к программе: PATH, затем привычные места. Программу из Dock в macOS запускают с коротким PATH,
+    поэтому Homebrew и ~/.local/bin проверяем явно."""
+    exe = name + ".exe" if IS_WIN else name
+    found = shutil.which(exe)
+    if found:
+        return found
+    home = Path.home()
+    places = list(extra) + [home / ".local" / "bin" / exe]
+    if IS_MAC:
+        places += [Path("/opt/homebrew/bin") / exe, Path("/usr/local/bin") / exe,
+                   home / ".npm-global" / "bin" / exe, home / ".claude" / "local" / exe]
+    if IS_WIN:
+        places += [home / "AppData/Local/Microsoft/WinGet/Links" / exe, Path(os.environ.get("APPDATA", "")) / "npm" / (name + ".cmd")]
+    for p in places:
+        if p and Path(p).exists():
+            return str(p)
+    return ""
+
+
+_machine = {}
+
+
+def machine_info() -> dict:
+    """Что за компьютер: модель, процессор, память (ГБ), ядра — чтобы посоветовать вариант Whisper."""
+    if _machine:
+        return _machine
+    info = {"model": "", "chip": "", "ram_gb": 0, "cores": os.cpu_count() or 0}
+    try:
+        if IS_MAC:
+            import json
+            out = subprocess.run(["/usr/sbin/system_profiler", "SPHardwareDataType", "-json"],
+                                 capture_output=True, text=True, timeout=20).stdout
+            hw = json.loads(out)["SPHardwareDataType"][0]
+            info["model"] = hw.get("machine_name", "")
+            info["chip"] = hw.get("chip_type") or hw.get("cpu_type", "")
+            info["ram_gb"] = int(str(hw.get("physical_memory", "0")).split()[0])
+        elif IS_WIN:
+            import ctypes
+            import winreg
+
+            def reg(path, name):
+                try:
+                    with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, path) as k:
+                        return str(winreg.QueryValueEx(k, name)[0]).strip()
+                except OSError:
+                    return ""
+            bios = r"HARDWARE\DESCRIPTION\System\BIOS"
+            maker = reg(bios, "SystemManufacturer").replace(" Inc.", "").replace(" Corporation", "")
+            info["model"] = " ".join(x for x in (maker, reg(bios, "SystemProductName")) if x)
+            import re
+            cpu = reg(r"HARDWARE\DESCRIPTION\System\CentralProcessor\0", "ProcessorNameString")
+            cpu = re.sub(r"\((R|TM)\)|\bCPU\b|@.*$|\d+(th|st|nd|rd) Gen", " ", cpu, flags=re.I)   # «Intel Core i5-4300U»
+            info["chip"] = " ".join(cpu.split())
+
+            class MEM(ctypes.Structure):
+                _fields_ = [("len", ctypes.c_ulong), ("load", ctypes.c_ulong), ("total", ctypes.c_ulonglong),
+                            ("avail", ctypes.c_ulonglong), ("pf", ctypes.c_ulonglong), ("pfa", ctypes.c_ulonglong),
+                            ("vt", ctypes.c_ulonglong), ("va", ctypes.c_ulonglong), ("ve", ctypes.c_ulonglong)]
+            m = MEM(len=ctypes.sizeof(MEM))
+            ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(m))
+            info["ram_gb"] = round(m.total / 2 ** 30)
+    except Exception:  # noqa: BLE001 — без сведений просто не будет совета
+        pass
+    _machine.update(info)
+    return _machine
+
+
+def records_dir(root: Path) -> Path:
+    """Где лежат записи: на Mac — в «Документах» (~/Documents/Qamyal), в Windows — рядом с программой."""
+    if IS_MAC:
+        return Path.home() / "Documents" / "Qamyal"
+    return root / "Записи"
+
+
+def os_name() -> str:
+    """«macOS 26.2» / «Windows 10» — для карточки «О программе»."""
+    import platform
+    if IS_MAC:
+        return "macOS " + platform.mac_ver()[0]
+    if IS_WIN:
+        return "Windows " + platform.release()
+    return platform.platform()
+
+
+def default_threads() -> int:
+    """Сколько потоков отдавать моделям: на этом ноутбуке 2 физических ядра, на Mac M-серии — 4 больших."""
+    if IS_MAC:
+        return max(2, min(4, (os.cpu_count() or 4) // 2))
+    return 2

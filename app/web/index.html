@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Qamyal</title>
+<link rel="icon" href="/static/icon.svg" type="image/svg+xml">
+<script>try { const t = JSON.parse(localStorage.getItem('theme')); if (t === 'dark' || t === 'light') document.documentElement.dataset.theme = t; } catch (e) {}</script>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<div id="app">
+  <nav id="side">
+    <div class="brand"><img class="logo" src="/static/icon.svg" alt=""><div>Qamyal<small>говори благое</small></div></div>
+    <a class="nav" href="#/rec" data-nav="rec"><span data-icon="mic"></span>Диктофон<span class="recdot"></span></a>
+    <a class="nav" href="#/lib" data-nav="lib"><span data-icon="list"></span>Записи<span class="badge" id="b-lib"></span></a>
+    <a class="nav" href="#/tasks" data-nav="tasks"><span data-icon="check"></span>Задачи<span class="badge" id="b-tasks"></span></a>
+    <a class="nav" href="#/voices" data-nav="voices"><span data-icon="users"></span>Голоса</a>
+    <a class="nav" href="#/glossary" data-nav="glossary"><span data-icon="book"></span>Словарь</a>
+    <a class="nav" href="#/settings" data-nav="settings"><span data-icon="gear"></span>Настройки</a>
+    <a class="nav" href="#/about" data-nav="about"><span data-icon="info"></span>О приложении</a>
+    <div class="side-status" id="side-status"></div>
+  </nav>
+  <main id="view"></main>
+</div>
+<div id="drop">Отпустите — записи встанут в очередь на расшифровку</div>
+<div id="toasts"></div>
+<input type="file" id="filepick" multiple hidden accept="audio/*,video/*,.mp3,.m4a,.wav,.ogg,.opus,.wma,.aac,.flac,.amr,.3gp,.mp4,.mov,.mkv,.webm,.dss">
+<script src="/static/i18n-dict.js"></script>
+<script src="/static/i18n.js"></script>
+<script src="/static/app.js"></script>
+</body>
+</html>

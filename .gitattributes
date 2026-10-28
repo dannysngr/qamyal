@@ -1,0 +1,4 @@
+# скрипты для macOS — только с переводом строки LF, иначе bash на Mac споткнётся о \r
+*.sh      text eol=lf
+*.swift   text eol=lf
+*.command text eol=lf
