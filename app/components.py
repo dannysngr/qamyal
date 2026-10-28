@@ -341,7 +341,8 @@ def install_speech(job: Job) -> None:
         job.step("Библиотеки распознавания (≈ 230 МБ)")
         req = ROOT / "mac" / "requirements-speech.txt"
         pip_install(["-r", str(req)])
-        src = next((p for p in (ROOT / "gigaam", ROOT / "downloads" / "gigaam" / "GigaAM-main") if p.exists()), None)
+        src = next((p for p in (ROOT / "gigaam", ROOT / "third_party" / "gigaam",
+                                ROOT / "downloads" / "gigaam" / "GigaAM-main") if p.exists()), None)
         if src is None:
             raise RuntimeError("Нет исходников GigaAM — переустановите Qamyal")
         pip_install([str(src)])

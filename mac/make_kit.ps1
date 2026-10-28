@@ -19,7 +19,7 @@ Copy-Item "$Root\app\skype\SkypeProbe.cs" "$Out\app\skype\"
 Get-ChildItem "$Root\mac" -File | Where-Object { $_.Name -ne "make_kit.ps1" } | Copy-Item -Destination "$Out\mac"
 
 # GigaAM из исходников (без сборочного мусора и примеров)
-robocopy "$Root\downloads\gigaam\GigaAM-main" "$Out\gigaam" /E /NFL /NDL /NJH /NJS /NP `
+robocopy "$Root\third_party\gigaam" "$Out\gigaam" /E /NFL /NDL /NJH /NJS /NP `
   /XD "build" "gigaam.egg-info" ".github" "tests" "train_utils" "triton_scripts" "assets" | Out-Null
 
 # модели, которые проще привезти, чем скачивать: GigaAM и разметка голосов (Whisper скачает install.sh)

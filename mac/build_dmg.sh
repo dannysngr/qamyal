@@ -85,7 +85,7 @@ DEV="$(hdiutil attach -readwrite -noverify -noautoopen "$RW" | awk '/Apple_HFS/ 
 MNT="/Volumes/$VOL"
 # раскладка окна — через Finder; если macOS не дала управлять Finder, образ всё равно рабочий, просто без фона
 sleep 2                                   # Finder замечает новый диск не сразу
-osascript - "$VOL" "$MNT" <<'EOS' || echo "  (Finder не дал разложить значки — образ без фона, но рабочий)"
+cat > "$TMP/layout.applescript" <<'EOS'
 on run argv
 tell application "Finder"
   -- ярлык Finder, а не символьная ссылка: у ссылки macOS 26 рисует пустой пунктирный квадрат вместо папки
@@ -111,6 +111,14 @@ tell application "Finder"
 end tell
 end run
 EOS
+# на сервере сборки (GitHub) Finder может не ответить — ждём не больше 2 минут
+osascript "$TMP/layout.applescript" "$VOL" "$MNT" &
+LAYOUT=$!
+( sleep 120; kill "$LAYOUT" 2>/dev/null ) &
+WATCH=$!
+wait "$LAYOUT" || echo "  (Finder не разложил значки — образ без фона, но рабочий)"
+kill "$WATCH" 2>/dev/null || true
+[[ -e "$MNT/Программы" ]] || ln -s /Applications "$MNT/Программы"     # без Finder — хотя бы ссылка на «Программы»
 chflags hidden "$MNT/.background" 2>/dev/null || true
 sync
 diskutil rename "$DEV" "Qamyal" >/dev/null

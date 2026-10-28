@@ -36,5 +36,5 @@
 
 ## Установка
 
-- **macOS:** собрать образ `bash mac/build_dmg.sh`, перетащить Qamyal в «Программы» и открыть. Python и библиотеки приложение поставит само. Модели скачиваются кнопками в Настройках → «Модели и дополнения».
+- **macOS:** готовый образ — в [Releases](https://github.com/dannysngr/qamyal/releases/tag/mac-latest), его собирает GitHub при каждом изменении программы (`.github/workflows/mac-dmg.yml`); вручную — `bash mac/build_dmg.sh`. Перетащить Qamyal в «Программы» и открыть. Python и библиотеки приложение поставит само. Модели скачиваются кнопками в Настройках → «Модели и дополнения».
 - **Windows:** Python 3.11, библиотеки из `mac/requirements-mac.txt` и `mac/requirements-speech.txt` плюс `winotify` (уведомления), GigaAM — из исходников. Запуск — `pythonw app/app.py`.

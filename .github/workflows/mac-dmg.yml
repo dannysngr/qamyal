@@ -1,0 +1,41 @@
+# Собирает установочный образ Qamyal.dmg для Mac на Mac-машине GitHub и выкладывает его в Releases
+# (выпуск «mac-latest»). Запускается при изменениях программы или вручную (Actions → Mac DMG → Run workflow).
+name: Mac DMG
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ["app/**", "mac/**", "third_party/**", ".github/workflows/mac-dmg.yml"]
+
+permissions:
+  contents: write
+
+jobs:
+  dmg:
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Комплект (как mac/make_kit.ps1)
+        run: |
+          mkdir -p kit
+          cp -R app mac kit/
+          cp -R third_party/gigaam kit/gigaam
+
+      - name: Сборка образа
+        run: bash kit/mac/build_dmg.sh kit out
+
+      - name: Выложить в Releases
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: mac-latest
+          name: Qamyal для Mac — последняя сборка
+          body: |
+            Установочный образ Qamyal для Mac с процессором Apple (M1 и новее), macOS 14.2 или новее.
+            Откройте образ, перетащите Qamyal в «Программы» и запустите. Python и библиотеки Qamyal поставит сам,
+            модели распознавания — кнопками в Настройках → «Модели и дополнения».
+            Если macOS не даёт открыть: Системные настройки → Конфиденциальность и безопасность → «Всё равно открыть».
+          files: out/*.dmg
+          make_latest: true
