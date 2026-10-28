@@ -100,7 +100,7 @@ tell application "Finder"
     set current view of container window to icon view
     set toolbar visible of container window to false
     set statusbar visible of container window to false
-    set the bounds of container window to {200, 100, 840, 598}
+    set the bounds of container window to {200, 90, 840, 598}
     set opts to the icon view options of container window
     set arrangement of opts to not arranged
     set icon size of opts to 112
@@ -109,7 +109,8 @@ tell application "Finder"
     set position of item "Qamyal.app" of container window to {160, 180}
     set position of item "Программы" of container window to {480, 180}
     try
-      set position of item "Если Qamyal не открывается.rtf" of container window to {535, 362}
+      set position of item "Если Qamyal не открывается.rtf" of container window to {535, 352}
+      set extension hidden of item "Если Qamyal не открывается.rtf" of container window to true
     end try
     update without registering applications
     delay 1

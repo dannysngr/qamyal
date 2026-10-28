@@ -3,11 +3,11 @@
 // build_dmg.sh склеивает их в один TIFF.
 //   swiftc -O make_dmg_background.swift -o /tmp/bg && /tmp/bg bg.png bg@2x.png
 // Значки в окне (build_dmg.sh): Qamyal — центр (160, 180), «Программы» — (480, 180), файл
-// «Если Qamyal не открывается» — (535, 368); размер 112. Внизу — карточка «Не открывается?».
+// «Если Qamyal не открывается» — (535, 352); размер 112. Внизу — карточка «Не открывается?».
 
 import AppKit
 
-let W: CGFloat = 640, H: CGFloat = 470
+let W: CGFloat = 640, H: CGFloat = 480
 let ICON_Y: CGFloat = 180
 let indigo = NSColor(srgbRed: 0.31, green: 0.42, blue: 0.94, alpha: 1)    // как в значке
 let violet = NSColor(srgbRed: 0.53, green: 0.36, blue: 0.94, alpha: 1)
@@ -93,7 +93,7 @@ func draw() {
          rounded(12.5, .medium), muted, centerX: W / 2, top: ICON_Y + 92)
 
     // карточка «Не открывается?»: путь через настройки и запасная команда; справа — файл с теми же шагами
-    let card = NSRect(x: 22, y: Y(456), width: W - 44, height: 152)
+    let card = NSRect(x: 22, y: Y(466), width: W - 44, height: 162)
     NSColor.white.withAlphaComponent(0.62).setFill()
     let cardPath = NSBezierPath(roundedRect: card, xRadius: 18, yRadius: 18)
     cardPath.fill()
