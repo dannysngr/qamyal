@@ -1,4 +1,4 @@
-QAMYAL («разговор» по-чеченски) — локальная запись и расшифровка разговоров
+QAMYAL — говори благое. Локальная запись и расшифровка разговоров
 
 Запуск: ярлык «Qamyal» на рабочем столе (pythonw app.py, значок app\icon\qamyal.ico).
 Иконка рисуется скриптом app\icon\make_icon.py (SVG → Chrome headless → Pillow → .ico);
