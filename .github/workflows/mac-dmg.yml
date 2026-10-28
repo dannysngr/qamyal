@@ -27,6 +27,24 @@ jobs:
       - name: Сборка образа
         run: bash kit/mac/build_dmg.sh kit out
 
+      - name: Проверка образа — поставить и запустить, как пользователь
+        run: |
+          set -x
+          DMG=$(ls out/*.dmg)
+          hdiutil attach -nobrowse -readonly "$DMG"
+          ls -la "/Volumes/Qamyal" "/Volumes/Qamyal/Qamyal.app/Contents/MacOS"
+          ditto "/Volumes/Qamyal/Qamyal.app" /Applications/Qamyal.app
+          plutil -p /Applications/Qamyal.app/Contents/Info.plist
+          file /Applications/Qamyal.app/Contents/MacOS/Qamyal
+          codesign -dv --verbose=4 /Applications/Qamyal.app || true
+          codesign --verify --deep --strict --verbose=2 /Applications/Qamyal.app || true
+          spctl -a -vv /Applications/Qamyal.app || true
+          otool -L /Applications/Qamyal.app/Contents/MacOS/Qamyal || true
+          open /Applications/Qamyal.app || true
+          sleep 8
+          pgrep -fl Qamyal || echo "Qamyal НЕ ЗАПУСТИЛСЯ"
+          log show --last 2m --style compact --predicate 'process == "Qamyal" OR eventMessage CONTAINS "Qamyal"' | tail -60 || true
+
       - name: Выложить в Releases
         uses: softprops/action-gh-release@v2
         with:
