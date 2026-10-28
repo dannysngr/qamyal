@@ -10,7 +10,7 @@ New-Item -ItemType Directory -Force "$Out\app", "$Out\mac", "$Out\models" | Out-
 
 # программа: код, страницы, иконка, «средний голос»; без профиля Chrome, кэшей, настроек и Windows-разведчика Skype
 robocopy "$Root\app" "$Out\app" /E /NFL /NDL /NJH /NJS /NP `
-  /XD ".ui-profile" "__pycache__" "editor_cwd" "skype" "mac" `
+  /XD ".ui-profile" "__pycache__" "editor_cwd" "skype" "scout" "mac" `
   /XF "settings.json" "*.pyc" "preview.png" "qamyal.ico" | Out-Null
 New-Item -ItemType Directory -Force "$Out\app\skype" | Out-Null
 Copy-Item "$Root\app\skype\SkypeProbe.cs" "$Out\app\skype\"

@@ -99,6 +99,7 @@ class Recorder:
         self.anchors = []
         self._was_paused = True
         self.probe, self.probe_log = None, None
+        self.scout, self.scout_log = None, None
         self.threads = []
         self.queues = {}
         self.running = False
@@ -145,6 +146,8 @@ class Recorder:
             self.threads.append(w)
             if self.service == "skype" and IS_WIN:      # Lync SDK есть только для Windows
                 self._start_skype_probe()
+            elif self.service and IS_WIN:
+                self._start_scout()
             if live:
                 from live import LiveProcess
                 self.live = LiveProcess()
@@ -179,6 +182,7 @@ class Recorder:
                 t.join(timeout=3)
             self.file.close()
             skype_log = self._stop_skype_probe()
+            scout_log = self._stop_scout()
             live_segs = self.live.stop() if self.live else []
             PAUSE.unlink(missing_ok=True)
             job = None
@@ -187,6 +191,8 @@ class Recorder:
                 self.path.unlink(missing_ok=True)
                 if skype_log:
                     skype_log.unlink(missing_ok=True)
+                if scout_log:
+                    scout_log.unlink(missing_ok=True)
             else:
                 s = load_settings()
                 when = datetime.fromtimestamp(self.started)
@@ -199,6 +205,8 @@ class Recorder:
                     write_json(job / "черновики" / "живая.json", live_segs)
                 if skype_log and skype_log.exists():
                     os.replace(skype_log, job / "черновики" / "skype.jsonl")
+                if scout_log and scout_log.exists():
+                    os.replace(scout_log, job / "черновики" / "разведка-окон.jsonl")
                 spawn_worker()
             self.state = "idle"
             self.last_job = job
@@ -229,6 +237,32 @@ class Recorder:
                 pass
         self.probe = None
         return getattr(self, "probe_log", None)
+
+    # ---------- остальные сервисы: разведка окна созвона (пока только собираем, как кто показан) ----------
+
+    def _start_scout(self):
+        """Разведчик пишет, что меняется в окне Zoom, Teams, Телемоста, браузера… во время созвона.
+        По этим записям потом делается распознавание «кто говорит» для каждого приложения."""
+        exe = APP / "scout" / "CallScout.exe"
+        self.scout, self.scout_log = None, None
+        if not exe.exists():
+            return
+        self.scout_log = self.path.with_suffix(".scout.jsonl")
+        try:
+            self.scout = subprocess.Popen([str(exe), str(self.scout_log)], creationflags=0x08000000)
+        except OSError:
+            self.scout = None
+
+    def _stop_scout(self):
+        p = getattr(self, "scout", None)
+        if p is not None:
+            try:
+                p.terminate()
+                p.wait(timeout=5)
+            except Exception:  # noqa: BLE001
+                pass
+        self.scout = None
+        return getattr(self, "scout_log", None)
 
     # ---------- потоки ----------
 

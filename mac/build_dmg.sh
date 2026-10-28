@@ -27,7 +27,7 @@ mkdir -p "$A/Contents/MacOS" "$P/bin" "$P/mac"
 
 step "1/4 Программа внутри приложения"
 rsync -a --exclude '__pycache__' --exclude 'settings.json' --exclude 'editor_cwd' --exclude '.ui-profile' \
-      --exclude 'skype' --exclude 'mac' "$KIT/app/" "$P/app/"
+      --exclude 'skype' --exclude 'scout' --exclude 'mac' "$KIT/app/" "$P/app/"
 cp "$KIT/mac/requirements-mac.txt" "$KIT/mac/requirements-speech.txt" "$P/mac/"
 rsync -a "$KIT/gigaam/" "$P/gigaam/"
 cp "$KIT/mac/setup.sh" "$R/setup.sh"

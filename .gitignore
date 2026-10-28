@@ -21,6 +21,7 @@ backups/
 # Skype для бизнеса: библиотеки Microsoft не распространяем, .exe собирается из SkypeProbe.cs
 app/skype/*.dll
 app/skype/*.exe
+app/scout/*.exe
 
 # Служебное
 __pycache__/
