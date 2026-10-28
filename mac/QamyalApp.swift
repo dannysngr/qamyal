@@ -201,6 +201,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNaviga
         env["PATH"] = ["\(home)/.local/bin", "/opt/homebrew/bin", "/usr/local/bin", env["PATH"] ?? "/usr/bin:/bin"]
             .joined(separator: ":")
         env["PYTHONUNBUFFERED"] = "1"
+        env["QAMYAL_BUILD"] = version                       // для обновления изнутри программы (app/update.py)
+        env["QAMYAL_APP"] = Bundle.main.bundlePath
         p.environment = env
         if let log = log { p.standardOutput = log; p.standardError = log }
         do { try p.run() } catch {

@@ -1282,10 +1282,38 @@ async function pageSettings() {
   drawComps(gone);
 }
 
-/** «О программе»: версия, статистика по всем записям, как устроена обработка, компьютер. */
+/** Новая версия (только Mac): Qamyal сам скачивает образ с GitHub, ставит и перезапускается. */
+async function drawUpdate(gone) {
+  let u;
+  try { u = await api('/api/update?now=1'); } catch { return; }
+  if (gone() || !u.supported) return;
+  markUpdate(u);
+  const box = $('#upd');
+  if (!u.available) {
+    box.innerHTML = `<div class="muted small upd-ok">${icon('check')}Установлена последняя версия Qamyal</div>`;
+    return;
+  }
+  box.innerHTML = `<div class="card upd">${icon('download')}<div class="grow"><b>Доступна новая версия Qamyal</b>
+    <div class="muted small"><span>сборка от</span> <span translate="no">${esc(u.version)}</span></div></div>
+    <button class="btn primary" id="updgo">${icon('download')}Обновить</button></div>`;
+  $('#updgo').onclick = async () => {
+    try { await api('/api/update', {}); } catch (e) { return fail(e); }
+    box.innerHTML = `<div class="card upd">${icon('refresh')}<div class="grow"><b>Скачиваю и ставлю новую версию…</b>
+      <div class="muted small">Qamyal закроется и откроется сам примерно через минуту.</div></div></div>`;
+  };
+}
+
+/** Точка у «О приложении», когда вышла новая версия. */
+function markUpdate(u) {
+  const b = $('#b-about');
+  if (b) { b.textContent = u && u.available ? '1' : ''; b.title = u && u.available ? 'Доступна новая версия' : ''; }
+}
+
+/** «О приложении»: версия, статистика по всем записям, как устроена обработка, компьютер. */
 async function pageAbout() {
   const gone = pageGuard();
-  view.innerHTML = `<div class="page"><div class="head"><h1>О приложении</h1></div><div class="card about" id="about"></div></div>`;
+  view.innerHTML = `<div class="page"><div class="head"><h1>О приложении</h1></div><div id="upd"></div><div class="card about" id="about"></div></div>`;
+  drawUpdate(gone);
   let a;
   try { a = await api('/api/about'); } catch (e) { return fail(e); }
   if (gone()) return;
@@ -1446,6 +1474,7 @@ function drawComps(gone) {
 /* ---------- старт ---------- */
 api('/api/voices').then(r => { window.VOICE_NAMES = r.voices.map(v => v.name); }).catch(() => {});
 Promise.all([loadColors(), pollState()]).then(route).then(() => { if (ST && ST.user === '') welcome(); });
+api('/api/update').then(markUpdate).catch(() => {});
 
 /** Первый запуск (имя ещё не задано — так ставит приложение для Mac): знакомимся и ведём к моделям. */
 function welcome() {

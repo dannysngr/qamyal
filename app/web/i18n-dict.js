@@ -333,6 +333,15 @@ const I18N_ROWS = [
 
   // ---------- о программе ----------
   ['О приложении', 'About', 'Приложенех лаьцна'],
+  ['Доступна новая версия Qamyal', 'A new version of Qamyal is available', 'Qamyal-н керла верси ю'],
+  ['Доступна новая версия', 'New version available', 'Керла верси ю'],
+  ['сборка от', 'build of', 'гулйина'],
+  ['Обновить', 'Update', 'Керла яккха'],
+  ['Установлена последняя версия Qamyal', 'You have the latest version of Qamyal', 'Qamyal-н тӀаьххьара верси дӀахӀоттийна ю'],
+  ['Скачиваю и ставлю новую версию…', 'Downloading and installing the new version…', 'Керла верси схьаоьцуш а, дӀахӀоттош а ю…'],
+  ['Qamyal закроется и откроется сам примерно через минуту.', 'Qamyal will close and reopen by itself in about a minute.', 'Qamyal дӀакъовлур а, шаш юха схьайиллур а ю минот гергга хьалха.'],
+  ['Сейчас идёт запись, обработка или загрузка — обновите, когда закончится', 'Recording, processing or a download is in progress — update when it finishes', 'ХӀинца дӀаяздар, кечдар я схьаэцар доьдуш ду — чекхдаьлча керла яккха'],
+  ['Новой версии нет', 'No new version', 'Керла верси яц'],
   ['Qamyal записывает рабочие разговоры — созвоны в Skype, Zoom, Телемосте и встречи вживую — и превращает их в текст: кто что сказал, краткое содержание, решения и задачи по проектам. Можно спросить что угодно по всем записям сразу или попросить письмо участникам.',
     'Qamyal records work conversations — calls in Skype, Zoom, Telemost and in-person meetings — and turns them into text: who said what, a summary, decisions and tasks by project. You can ask anything across all recordings at once or ask for a letter to the participants.',
     'Qamyal болх бечу къамелийн дӀаяздарш до — Skype, Zoom, Телемост чохь йолу зӀенаш а, дуьхь-дуьхьал цхьаьнакхетарш а — текстан юкъа доху: мила хӀун элира, доца чулацам, сацамаш, проекташца декхарш. Массо а дӀаяздаршца цхьана хаттар дан я декъашхошна кехат даийта мегар ду.'],

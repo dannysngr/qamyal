@@ -42,8 +42,18 @@ jobs:
           otool -L /Applications/Qamyal.app/Contents/MacOS/Qamyal || true
           open /Applications/Qamyal.app || true
           sleep 8
-          pgrep -fl Qamyal || echo "Qamyal НЕ ЗАПУСТИЛСЯ"
-          log show --last 2m --style compact --predicate 'process == "Qamyal" OR eventMessage CONTAINS "Qamyal"' | tail -60 || true
+          pgrep -fl Qamyal || { echo "Qamyal НЕ ЗАПУСТИЛСЯ"; exit 1; }
+          ls -la "/Volumes/Qamyal/"
+          cat out/latest.json
+          osascript -e 'tell application "Finder" to open disk "Qamyal"' -e 'tell application "Finder" to activate' || true
+          sleep 3
+          screencapture -x out/preview-window.png || true
+
+      - name: Снимки окна образа (для проверки)
+        uses: actions/upload-artifact@v4
+        with:
+          name: preview
+          path: out/preview-*.png
 
       - name: Выложить в Releases
         uses: softprops/action-gh-release@v2
@@ -54,6 +64,10 @@ jobs:
             Установочный образ Qamyal для Mac с процессором Apple (M1 и новее), macOS 14.2 или новее.
             Откройте образ, перетащите Qamyal в «Программы» и запустите. Python и библиотеки Qamyal поставит сам,
             модели распознавания — кнопками в Настройках → «Модели и дополнения».
-            Если macOS не даёт открыть: Системные настройки → Конфиденциальность и безопасность → «Всё равно открыть».
-          files: out/*.dmg
+            Если macOS не даёт открыть: Системные настройки → Конфиденциальность и безопасность → «Всё равно открыть»
+            (подробно — в файле «Если Qamyal не открывается» внутри образа). Разрешить нужно один раз:
+            новые версии Qamyal ставит сам — кнопкой «Обновить» на странице «О приложении».
+          files: |
+            out/*.dmg
+            out/latest.json
           make_latest: true

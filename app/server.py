@@ -229,6 +229,27 @@ def about():
     }
 
 
+# ---------- обновление (Mac): новая версия с GitHub по кнопке ----------
+
+@app.get("/api/update")
+def update_get():
+    import update
+    return update.check(force=bool(request.query.get("now")))
+
+
+@app.post("/api/update")
+def update_start():
+    import components
+    import update
+    if rec.state != "idle" or worker_pid() or components.current().get("state") == "running":
+        bottle.abort(409, "Сейчас идёт запись, обработка или загрузка — обновите, когда закончится")
+    try:
+        update.start()
+    except RuntimeError as e:
+        bottle.abort(409, str(e))
+    return {"ok": True}
+
+
 # ---------- что докачивается по кнопке ----------
 
 @app.get("/api/components")

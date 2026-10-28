@@ -28,7 +28,7 @@ mkdir -p "$A/Contents/MacOS" "$P/bin" "$P/mac"
 step "1/4 Программа внутри приложения"
 rsync -a --exclude '__pycache__' --exclude 'settings.json' --exclude 'editor_cwd' --exclude '.ui-profile' \
       --exclude 'skype' --exclude 'scout' --exclude 'mac' "$KIT/app/" "$P/app/"
-cp "$KIT/mac/requirements-mac.txt" "$KIT/mac/requirements-speech.txt" "$P/mac/"
+cp "$KIT/mac/requirements-mac.txt" "$KIT/mac/requirements-speech.txt" "$KIT/mac/update.sh" "$P/mac/"
 rsync -a "$KIT/gigaam/" "$P/gigaam/"
 cp "$KIT/mac/setup.sh" "$R/setup.sh"
 
@@ -73,10 +73,14 @@ codesign --force --deep --sign - "$A"
 
 step "3/4 Окно образа: Qamyal → «Программы»"
 mkdir "$STAGE/.background"
+# инструкция «Если Qamyal не открывается» — в RTF: TextEdit не гадает с кодировкой, команду можно скопировать
+textutil -convert rtf -inputencoding UTF-8 -font "Helvetica" -fontsize 14 "$KIT/mac/Если Qamyal не открывается.txt" \
+         -output "$STAGE/Если Qamyal не открывается.rtf"
 # фон рисуется здесь же, на Mac (шрифт SF Pro Rounded), обычный и Retina — в одном TIFF
 swiftc -O "$KIT/mac/make_dmg_background.swift" -o "$TMP/bgtool" 2>/dev/null
 "$TMP/bgtool" "$TMP/bg.png" "$TMP/bg@2x.png"
 tiffutil -cathidpicheck "$TMP/bg.png" "$TMP/bg@2x.png" -out "$STAGE/.background/background.tiff" >/dev/null
+mkdir -p "$OUT" && cp "$TMP/bg@2x.png" "$OUT/preview-background.png"      # посмотреть фон без Mac
 RW="$TMP/rw.dmg"
 # временное имя тома: если открыт прошлый образ «Qamyal», Finder перепутал бы диски
 VOL="QamyalBuild$$"
@@ -96,14 +100,17 @@ tell application "Finder"
     set current view of container window to icon view
     set toolbar visible of container window to false
     set statusbar visible of container window to false
-    set the bounds of container window to {200, 120, 840, 548}
+    set the bounds of container window to {200, 100, 840, 598}
     set opts to the icon view options of container window
     set arrangement of opts to not arranged
     set icon size of opts to 112
     set text size of opts to 13
     set background picture of opts to file ".background:background.tiff"
-    set position of item "Qamyal.app" of container window to {160, 190}
-    set position of item "Программы" of container window to {480, 190}
+    set position of item "Qamyal.app" of container window to {160, 180}
+    set position of item "Программы" of container window to {480, 180}
+    try
+      set position of item "Если Qamyal не открывается.rtf" of container window to {535, 362}
+    end try
     update without registering applications
     delay 1
     close
@@ -130,4 +137,6 @@ DMG="$OUT/Qamyal-$VERSION.dmg"
 rm -f "$DMG"
 hdiutil convert "$RW" -format ULMO -o "$DMG" >/dev/null
 rm -rf "$TMP"
+# для обновления изнутри Qamyal (app/update.py): номер этой сборки и имя образа
+printf '{"build": "%s", "version": "%s", "dmg": "%s"}\n' "$BUILD" "$VERSION" "$(basename "$DMG")" > "$OUT/latest.json"
 echo "Готово: $DMG ($(du -h "$DMG" | cut -f1))"
