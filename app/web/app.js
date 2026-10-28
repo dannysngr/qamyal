@@ -211,8 +211,9 @@ async function pollState() {
     if (!$('#reconnect')) {                   // кнопку не пересоздаём при каждом опросе — иначе нажатие теряется
       box.onclick = null;
       box.classList.remove('clickable');
+      box.title = '';
       box.innerHTML = `<b style="color:#ff8a8a">Нет связи с программой</b>
-        <button class="btn sm" id="reconnect" style="margin-top:8px;width:100%;justify-content:center">${icon('refresh')}Переподключить</button>
+        <button class="btn sm" id="reconnect" style="margin-top:8px;width:100%;justify-content:center" title="Нет связи с программой — переподключить">${icon('refresh')}Переподключить</button>
         <div id="rchint" style="margin-top:8px;display:none">Программа не отвечает. Запустите ярлык Qamyal на рабочем столе — это окно подключится само, закрывать его не нужно.</div>`;
       $('#reconnect').onclick = async () => {
         const b = $('#reconnect');
@@ -547,16 +548,15 @@ function pageMini() {
   function work() {
     if (!ST) return;
     let h;
+    // одна строка и тонкая полоска: подробности — в основном окне
     if (ST.download) {
       const dl = ST.download, pct = dl.total ? Math.min(100, Math.round(dl.done * 100 / dl.total)) : 0;
-      h = `<div><b>Скачиваю</b> <span class="muted">${esc(dl.step || 'Начинаю…')}${dl.total ? ` · ${pct}%` : ''}</span></div>
+      h = `<div title="${esc(dl.step || '')}"><b>Скачиваю</b><span class="muted">${dl.total ? ` · ${pct}%` : ''}</span></div>
         <div class="bar${dl.total ? '' : ' busy'}"><i style="width:${dl.total ? pct : 100}%"></i></div>`;
     } else if (ST.work.length) {
-      const w = ST.work[0], cur = w.status === 'working';
-      h = `<div class="mw-t"><b>${esc(w.name)}</b></div>
-        <div class="muted">${cur ? `${esc(w.stage_label)} · ${w.progress}%` : 'ждёт очереди'}</div>
-        <div class="bar"><i style="width:${cur ? w.progress : 0}%"></i></div>` +
-        (ST.work.length > 1 ? `<div class="muted">и ещё ${ST.work.length - 1} в очереди</div>` : '');
+      const w = ST.work[0], cur = w.status === 'working', more = ST.work.length - 1;
+      h = `<div title="${more ? esc(`и ещё ${more} в очереди`) : ''}"><span class="muted">${cur ? `${esc(w.stage_label)} · ${w.progress}%` : 'ждёт очереди'}${more ? ` · +${more}` : ''}</span> <b>${esc(w.name)}</b></div>
+        <div class="bar"><i style="width:${cur ? w.progress : 0}%"></i></div>`;
     } else h = `<div class="muted">${icon('check')}<span>Все записи обработаны</span></div>`;
     if (h !== lastWork) { lastWork = h; $('#mw').innerHTML = h; }
   }
@@ -586,7 +586,7 @@ function pageMini() {
   onLeave(() => document.removeEventListener('keydown', onKey));
   // Размер мини-окна постоянный: столько, сколько нужно содержимому. На Mac его задаёт оболочка;
   // в Windows рамку окна знает только страница — она и просит программу поставить нужный размер.
-  const W = 380, H = 260;
+  const W = 320, H = 160;
   // /mini, открытый обычной вкладкой браузера (с адресной строкой), окном мини-окна не командует
   const appWin = () => !MAC_SHELL && outerHeight - innerHeight < 80;
   const fit = first => {                   // первый раз — всегда: программа заодно убирает растягивание

@@ -60,20 +60,26 @@ svg.i { width: 18px; height: 18px; flex: none; stroke: currentColor; fill: none;
 /* ---------- мини-окно: запись, таймер, ход обработки ---------- */
 html.mini #app { grid-template-columns: 1fr; }
 html.mini #side { display: none; }
-.mini-box { display: grid; gap: 12px; padding: 14px 16px; }
-.mini-rec { display: flex; align-items: center; gap: 14px; }
-.mini-rec .bigbtn { width: 64px; height: 64px; margin: 6px; box-shadow: 0 0 0 6px var(--rec-soft); }
-.mini-rec .bigbtn svg.i { width: 30px; height: 30px; }
-.mini-rec .bigbtn.stop svg.i { width: 24px; height: 24px; }
+.mini-box { display: grid; gap: 8px; padding: 8px 12px 10px; }
+.mini-rec { display: flex; align-items: center; gap: 10px; }
+.mini-rec .bigbtn { width: 46px; height: 46px; margin: 4px; box-shadow: 0 0 0 4px var(--rec-soft); }
+.mini-rec .bigbtn svg.i { width: 22px; height: 22px; }
+.mini-rec .bigbtn.stop svg.i { width: 17px; height: 17px; }
 .mini-mid { flex: 1; min-width: 0; }
-.mini-rec .timer { font-size: 32px; }
-.mini-rec .rec-state { font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.mini-work { font-size: 13px; display: grid; gap: 4px; min-height: 40px; }
-.mini-work .mw-t { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.mini-work .bar { margin: 2px 0; }
-.mini-work svg.i { width: 15px; height: 15px; vertical-align: -3px; margin-right: 5px; color: var(--ok); }
+.mini-rec .timer { font-size: 24px; }
+.mini-rec .rec-state { font-size: 12px; min-height: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mini-rec .btn { padding: 6px 8px; }
 .mini-rec .btn[hidden] { display: none; }
-.mini-foot { display: flex; align-items: center; gap: 8px; font-size: 13px; border-top: 1px solid var(--line); padding-top: 10px; }
+.mini-work { font-size: 12px; display: grid; gap: 4px; height: 26px; align-content: center; }
+.mini-work > div { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mini-work .bar { height: 4px; }
+.mini-work svg.i { width: 14px; height: 14px; vertical-align: -3px; margin-right: 5px; color: var(--ok); }
+.mini-foot { display: flex; align-items: center; gap: 8px; font-size: 12px; border-top: 1px solid var(--line); padding-top: 8px; }
+.mini-foot .switch { gap: 7px; }
+.mini-foot .switch i { width: 30px; height: 18px; }
+.mini-foot .switch i::after { width: 12px; height: 12px; }
+.mini-foot .switch input:checked + i::after { left: 15px; }
+.mini-foot .btn { padding: 4px 6px; font-size: 12px; }
 .mini-foot .grow { flex: 1; }
 
 /* ---------- компактный вид: в панели только значки, подсказки скрыты ---------- */
@@ -89,9 +95,13 @@ html.mini #side { display: none; }
 .compact .side-status .bar { margin-top: 0; }
 .compact .side-status div:not(.bar) { display: none; }
 .compact .side-status:not(:has(.bar)) { display: none; }
-.compact .side-status:not(:has(.bar)) + .side-tg { margin-top: auto; }
-.compact .side-status:has(#reconnect) { display: block; position: fixed; left: 10px; bottom: 60px; width: 210px; padding: 12px; font-size: 12.5px; z-index: 50; }
-.compact .side-status:has(#reconnect) div { display: block; }
+.compact .side-status:not(:has(.bar, #reconnect)) + .side-tg { margin-top: auto; }
+/* нет связи: вместо карточки — красный значок «Переподключить», пояснение во всплывающей подсказке */
+.compact .side-status:has(#reconnect) { display: block; padding: 0; background: none; }
+.compact .side-status:has(#reconnect) > b { display: none; }
+.compact #reconnect { margin: 0 !important; width: 44px !important; height: 40px; padding: 0; font-size: 0;
+  background: rgba(255, 92, 98, .18); color: #ff8a8a; }
+.compact #reconnect svg.i { margin: 0; }
 .compact .tip, .compact .help:not(.err) { display: none !important; }
 .compact .rec-page:has(#rs.tip) { max-width: 540px; }
 .compact .rec-layout:has(#rs.tip) { grid-template-columns: 1fr; }

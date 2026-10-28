@@ -146,7 +146,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUI
         }
         guard let port = serverPort() else { return }
         // размер постоянный — под содержимое (как W×H в pageMini); растянуть и развернуть нельзя
-        let size = NSSize(width: 380, height: 260)
+        let size = NSSize(width: 320, height: 160)
         let w = NSWindow(contentRect: NSRect(origin: .zero, size: size),
                          styleMask: [.titled, .closable, .miniaturizable],
                          backing: .buffered, defer: false)

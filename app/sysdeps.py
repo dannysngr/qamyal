@@ -239,7 +239,7 @@ def open_mini_window(url: str, profile: Path, top: bool, rect=None) -> None:
         focus_window(h)
         _set_topmost(h, top)
         return
-    open_app_window(url, profile, ["--window-size=400,300"])
+    open_app_window(url, profile, ["--window-size=336,197"])
 
     def place():
         import ctypes
@@ -261,7 +261,7 @@ def open_mini_window(url: str, profile: Path, top: bool, rect=None) -> None:
         else:                                    # первый раз или того монитора больше нет
             wa = wintypes.RECT()
             user32.SystemParametersInfoW(0x30, 0, ctypes.byref(wa), 0)  # SPI_GETWORKAREA
-            w, hh = 400, 300
+            w, hh = 336, 197                      # 320×160 внутри + рамка Chrome
             x, y = wa.right - w - 16, wa.bottom - hh - 16
         user32.SetWindowPos(wintypes.HWND(h), None, x, y, w, hh, 0x0014)       # SWP_NOZORDER | SWP_NOACTIVATE
         _set_topmost(h, top)
