@@ -169,7 +169,7 @@ def state():
     st.pop("live_segments", None)
     s = load_settings()
     components.claude_appeared(s)
-    dl = components.current()
+    dl = components.running()
     open_tasks = 0
     done_map = read_json(TASKS_STATE, {})
     for d, j in jobs:
@@ -183,7 +183,7 @@ def state():
             "errors": sum(1 for _, j in jobs if j.get("status") == "error"),
             "user": s["user_name"], "editor": s["editor"], "theme": s.get("theme", "system"),
             "lang": s.get("lang", "ru"), "speech": components.speech_ready(),
-            "download": dl if dl.get("state") == "running" else None}
+            "download": {**dl[0], "more": len(dl) - 1} if dl else None}
 
 
 # ---------- о программе ----------
@@ -241,7 +241,7 @@ def update_get():
 def update_start():
     import components
     import update
-    if rec.state != "idle" or worker_pid() or components.current().get("state") == "running":
+    if rec.state != "idle" or worker_pid() or components.running():
         bottle.abort(409, "Сейчас идёт запись, обработка или загрузка — обновите, когда закончится")
     try:
         update.start()

@@ -222,7 +222,8 @@ function renderSide() {
   } else if (ST.download) {
     const dl = ST.download, pct = dl.total ? Math.min(100, Math.round(dl.done * 100 / dl.total)) : 0;
     box.innerHTML = `<b>Скачиваю</b><br>${esc(dl.step || 'Начинаю…')}${dl.total ? ` · ${pct}%` : ''}` +
-      `<div class="bar${dl.total ? '' : ' busy'}"><i style="width:${dl.total ? pct : 100}%"></i></div>`;
+      `<div class="bar${dl.total ? '' : ' busy'}"><i style="width:${dl.total ? pct : 100}%"></i></div>` +
+      (dl.more ? `<div style="margin-top:6px">${plural(dl.more, 'и ещё {n} загрузка', 'и ещё {n} загрузки', 'и ещё {n} загрузок').replace('{n}', dl.more)}</div>` : '');
     box.classList.add('clickable');
     box.onclick = () => { location.hash = '#/settings'; };
   } else if (ST.work.length && ST.speech === false) {
@@ -1387,30 +1388,32 @@ function drawComps(gone) {
     const js = JSON.stringify(c);
     if (js === last) return;
     last = js;
-    const job = c.job || {}, busy = job.state === 'running';
+    // загрузки идут независимо: у каждой своё состояние — «speech», «whisper-small»…
+    const J = c.jobs || {}, jobOf = (id, model) => J[id + (model ? '-' + model : '')] || {};
+    const running = (id, model) => jobOf(id, model).state === 'running';
     const ready = Object.fromEntries(c.items.map(x => [x.id, x.ready]));
     const wh = $('#wh');
     if (wh) { wh.disabled = !ready.whisper; wh.closest('div').querySelector('.help').textContent = ready.whisper ? 'Лучше английские слова и имена. Без него обработка почти вдвое быстрее.' : 'Whisper не скачан — его можно скачать выше.'; }
     const box = $('#comps');
     box.hidden = false;
-    const progress = () => {
+    const progress = job => {
       const pct = job.total ? Math.min(100, Math.round(job.done * 100 / job.total)) : 0;
       return `<div class="dl"><div class="small">${esc(job.step || 'Начинаю…')}${job.total ? ` · ${mb(job.done)} из ${mb(job.total)} МБ` : ''}</div>
         <div class="bar${job.total ? '' : ' busy'}"><i style="width:${job.total ? pct : 100}%"></i></div></div>`;
     };
     // «Скачать» — стрелка вниз (к себе на компьютер), под кнопкой — сколько скачается
-    const getBtn = (attrs, off, resume, size) =>
-      `<button class="btn sm primary" ${attrs} ${off ? 'disabled' : ''}>${icon('download')}${resume ? 'Продолжить' : 'Скачать'}</button>` +
+    const getBtn = (attrs, resume, size) =>
+      `<button class="btn sm primary" ${attrs}>${icon('download')}${resume ? 'Продолжить' : 'Скачать'}</button>` +
       (size ? `<div class="dlsize">${esc(size)}</div>` : '');
-    const failed = (id, model) => job.id === id && job.state === 'error' && (job.model || '') === (model || '');
-    const errLine = (id, model) => failed(id, model) ? `<div class="help" style="color:var(--rec)">${esc(job.error)}</div>` : '';
+    const failed = (id, model) => jobOf(id, model).state === 'error';
+    const errLine = (id, model) => failed(id, model) ? `<div class="help" style="color:var(--rec)">${esc(jobOf(id, model).error)}</div>` : '';
     const variant = v => {
       let right;
-      if (job.id === 'whisper' && job.model === v.key && busy) right = progress();
+      if (running('whisper', v.key)) right = progress(jobOf('whisper', v.key));
       else if (v.active && v.downloaded) right = `<span class="ok">${icon('check')}Используется</span>`;
       else if (v.downloaded) right = `<button class="btn sm" data-use="${v.key}">Использовать</button>` +
         (v.deletable ? ` <button class="btn sm ghost danger" data-del="${v.key}" title="Удалить с компьютера">${icon('trash')}</button>` : '');
-      else right = getBtn(`data-get="whisper" data-model="${v.key}"`, busy, failed('whisper', v.key), v.size);
+      else right = getBtn(`data-get="whisper" data-model="${v.key}"`, failed('whisper', v.key), v.size);
       return `<tr class="${v.best ? 'best' : ''}"><td class="nowrap"><b translate="no">${esc(v.key)}</b>${v.best ? '<div><span class="need">советуем</span></div>' : ''}</td>
         <td><i class="what">${esc(v.what)}</i>${errLine('whisper', v.key)}</td><td class="comp-r">${right}</td></tr>`;
     };
@@ -1422,14 +1425,13 @@ function drawComps(gone) {
           <span>Советуем:</span> <b translate="no">${esc(a.key)}</b> — <span>${esc(a.why)}</span>.</div></div>` : ''}`;
     };
     const row = x => {
-      const mine = job.id === x.id;
       let right = '';
       if (x.variants) right = '';
       else if (x.ready) right = `<span class="ok">${icon('check')}Установлено</span>`;
-      else if (mine && busy) right = progress();
-      else if (x.id === 'claude') right = `<button class="btn sm" data-get="claude" ${busy ? 'disabled' : ''}>${icon('spark')}Установить</button>`;
+      else if (running(x.id)) right = progress(jobOf(x.id));
+      else if (x.id === 'claude') right = `<button class="btn sm" data-get="claude">${icon('spark')}Установить</button>`;
       else if (x.id === 'browser') right = `<button class="btn sm primary" data-ext="1">${icon('screen')}Установить</button>`;
-      else right = getBtn(`data-get="${x.id}"`, busy, failed(x.id), x.size);
+      else right = getBtn(`data-get="${x.id}"`, failed(x.id), x.size);
       return `<div class="comp"><div><b class="ctitle">${esc(x.title)}</b>${x.need ? ' <span class="need">нужно</span>' : ''}
         <div class="help">${esc(x.about)}</div>
         <ul class="parts">${(x.parts || []).map(p => `<li><b>${esc(p.name)}</b> — <i>${esc(p.what)}</i>

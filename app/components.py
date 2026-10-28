@@ -1,7 +1,8 @@
 """Что программа докачивает по кнопке в Настройках: распознавание речи, Whisper, Claude Code.
 Установщик для Mac ставит только саму программу; тяжёлое (библиотеки ≈ 230 МБ, модели от 0,6 до 3,6 ГБ)
 пользователь скачивает сам, когда захочет. Скачивание идёт отдельным процессом
-(python components.py <id> [вариант Whisper]) и переживает закрытие окна; ход — в Записи/.components.json.
+(python components.py <id> [вариант Whisper]) и переживает закрытие окна; ход — в Записи/.downloads/<что>.json.
+Загрузки идут независимо: можно качать всё сразу.
 Оборванная загрузка продолжается с того же места."""
 import importlib.util
 import os
@@ -14,7 +15,7 @@ from pathlib import Path
 from common import JOBS, MODELS, ROOT, find_claude, load_settings, read_json, save_settings, write_json
 from sysdeps import IS_WIN, find_program, gui_python, machine_info, open_console, pid_alive, spawn_detached
 
-STATUS = JOBS / ".components.json"
+STATUS_DIR = JOBS / ".downloads"            # ход каждой загрузки — своим файлом: качать можно всё сразу
 GIGAAM_URL = "https://cdn.chatwm.opensmodel.sberdevices.ru/GigaAM"
 GIGAAM_MD5 = "2730de7545ac43ad256485a462b0a27a"          # v3_e2e_rnnt, как в gigaam._MODEL_HASHES
 SHERPA = "https://github.com/k2-fsa/sherpa-onnx/releases/download"
@@ -167,9 +168,12 @@ def extension_seen() -> None:
         write_json(EXT_SEEN, {"seen": time.time()})
 
 
-def current() -> dict:
-    """Идущая или последняя загрузка."""
-    st = read_json(STATUS, {}) or {}
+def job_key(cid: str, model: str = "") -> str:
+    return cid + ("-" + model if model else "")
+
+
+def _job(path: Path) -> dict:
+    st = read_json(path, {}) or {}
     # pid 0 — процесс только запускается (несколько секунд)
     lost = st.get("pid") and not pid_alive(st["pid"]) or not st.get("pid") and time.time() - st.get("at", 0) > 60
     if st.get("state") == "running" and lost:
@@ -177,9 +181,18 @@ def current() -> dict:
     return st
 
 
+def jobs() -> dict:
+    """Все загрузки — идущие и последние: {«speech» | «whisper-small» …: состояние}. Идут независимо друг от друга."""
+    return {p.stem: _job(p) for p in STATUS_DIR.glob("*.json")} if STATUS_DIR.exists() else {}
+
+
+def running() -> list:
+    return [j for j in jobs().values() if j.get("state") == "running"]
+
+
 def status() -> dict:
     """Для окна: что установлено и что сейчас качается."""
-    st = current()
+    all_jobs = jobs()
     items = [{"id": k, **v, "ready": ready(k)} for k, v in INFO.items()]
     active = whisper_model()
     machine = machine_info()
@@ -190,7 +203,7 @@ def status() -> dict:
                             for k, m in WHISPER_MODELS.items()]
     items[1]["advice"] = {"key": advice, "why": why, "machine": machine}
     items[3]["folder"] = str(EXTENSION)
-    return {"items": items, "job": st}
+    return {"items": items, "jobs": all_jobs}
 
 
 def use_whisper(key: str) -> None:
@@ -206,8 +219,7 @@ def delete_whisper(key: str) -> None:
     import shutil
     if key not in WHISPER_MODELS or key == whisper_model():
         raise RuntimeError("Выбранный вариант удалить нельзя — сначала выберите другой")
-    st = current()
-    if st.get("state") == "running" and st.get("model") == key:
+    if jobs().get(job_key("whisper", key), {}).get("state") == "running":
         raise RuntimeError("Этот вариант сейчас скачивается")
     shutil.rmtree(whisper_dir(key), ignore_errors=True)
     shutil.rmtree(whisper_dir(key).with_name(key + ".part"), ignore_errors=True)
@@ -221,8 +233,8 @@ def start(cid: str, model: str = "") -> None:
         open_path(EXTENSION)
         open_chrome_extensions()
         return
-    if current().get("state") == "running":
-        raise RuntimeError("Уже идёт загрузка — дождитесь её конца")
+    if jobs().get(job_key(cid, model), {}).get("state") == "running":
+        raise RuntimeError("Это уже скачивается")
     if cid == "claude":
         s = load_settings()
         s["claude_pending"] = True            # когда Claude появится, итог начнёт делать он
@@ -238,9 +250,10 @@ def start(cid: str, model: str = "") -> None:
     if cid == "whisper":                          # файлы модели качаются сами по себе — распознавание не нужно
         if model not in WHISPER_MODELS:
             raise RuntimeError("Нет такого варианта Whisper")
-    JOBS.mkdir(exist_ok=True)
-    write_json(STATUS, {"id": cid, "model": model, "state": "running", "pid": 0, "step": "", "done": 0, "total": 0,
-                        "at": time.time()})
+    STATUS_DIR.mkdir(parents=True, exist_ok=True)
+    write_json(STATUS_DIR / f"{job_key(cid, model)}.json",
+               {"id": cid, "model": model, "state": "running", "pid": 0, "step": "", "done": 0, "total": 0,
+                "at": time.time()})
     spawn_detached([gui_python(), str(Path(__file__).resolve()), cid, model], ROOT / "app")
 
 
@@ -267,7 +280,8 @@ class Job:
     def save(self, force: bool = True) -> None:
         if force or time.time() - self.last > 0.7:
             self.last = time.time()
-            write_json(STATUS, self.st)
+            STATUS_DIR.mkdir(parents=True, exist_ok=True)
+            write_json(STATUS_DIR / f"{job_key(self.st['id'], self.model)}.json", self.st)
 
     def step(self, text: str, total: int = 0) -> None:
         self.st.update(step=text, done=0, total=total)
