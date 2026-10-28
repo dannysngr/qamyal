@@ -5,21 +5,25 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Qamyal</title>
 <link rel="icon" href="/static/icon.svg" type="image/svg+xml">
-<script>try { const t = JSON.parse(localStorage.getItem('theme')); if (t === 'dark' || t === 'light') document.documentElement.dataset.theme = t; } catch (e) {}</script>
+<script>try { const t = JSON.parse(localStorage.getItem('theme')); if (t === 'dark' || t === 'light') document.documentElement.dataset.theme = t;
+  if (JSON.parse(localStorage.getItem('compact'))) document.documentElement.classList.add('compact'); } catch (e) {}
+  if (location.pathname === '/mini') { document.documentElement.classList.add('mini'); document.title = 'Qamyal · мини'; }</script>
 <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
 <div id="app">
   <nav id="side">
     <div class="brand"><img class="logo" src="/static/icon.svg" alt=""><div>Qamyal<small>говори благое</small></div></div>
-    <a class="nav" href="#/rec" data-nav="rec"><span data-icon="mic"></span>Диктофон<span class="recdot"></span></a>
-    <a class="nav" href="#/lib" data-nav="lib"><span data-icon="list"></span>Записи<span class="badge" id="b-lib"></span></a>
-    <a class="nav" href="#/tasks" data-nav="tasks"><span data-icon="check"></span>Задачи<span class="badge" id="b-tasks"></span></a>
-    <a class="nav" href="#/voices" data-nav="voices"><span data-icon="users"></span>Голоса</a>
-    <a class="nav" href="#/glossary" data-nav="glossary"><span data-icon="book"></span>Словарь</a>
-    <a class="nav" href="#/settings" data-nav="settings"><span data-icon="gear"></span>Настройки</a>
-    <a class="nav" href="#/about" data-nav="about"><span data-icon="info"></span>О приложении<span class="badge" id="b-about"></span></a>
+    <a class="nav" href="#/rec" data-nav="rec" title="Диктофон"><span data-icon="mic"></span><span class="nt">Диктофон</span><span class="recdot"></span></a>
+    <a class="nav" href="#/lib" data-nav="lib" title="Записи"><span data-icon="list"></span><span class="nt">Записи</span><span class="badge" id="b-lib"></span></a>
+    <a class="nav" href="#/tasks" data-nav="tasks" title="Задачи"><span data-icon="check"></span><span class="nt">Задачи</span><span class="badge" id="b-tasks"></span></a>
+    <a class="nav" href="#/voices" data-nav="voices" title="Голоса"><span data-icon="users"></span><span class="nt">Голоса</span></a>
+    <a class="nav" href="#/glossary" data-nav="glossary" title="Словарь"><span data-icon="book"></span><span class="nt">Словарь</span></a>
+    <a class="nav" href="#/settings" data-nav="settings" title="Настройки"><span data-icon="gear"></span><span class="nt">Настройки</span></a>
+    <a class="nav" href="#/about" data-nav="about" title="О приложении"><span data-icon="info"></span><span class="nt">О приложении</span><span class="badge" id="b-about"></span></a>
     <div class="side-status" id="side-status"></div>
+    <button class="nav side-tg" id="mini-tg" title="Мини-окно: запись и ход обработки в маленьком окне"><span data-icon="mini"></span><span class="nt">Мини-окно</span></button>
+    <button class="nav side-tg" id="compact-tg"></button>
   </nav>
   <main id="view"></main>
 </div>

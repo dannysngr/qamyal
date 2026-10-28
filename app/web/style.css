@@ -52,6 +52,50 @@ svg.i { width: 18px; height: 18px; flex: none; stroke: currentColor; fill: none;
 .side-status.clickable { cursor: pointer; }
 .side-status .btn { background: rgba(255, 255, 255, .14); border-color: transparent; color: #fff; }
 .side-status .btn:hover { background: rgba(255, 255, 255, .22); }
+.side-tg { display: flex; align-items: center; gap: 11px; margin-top: 8px; padding: 8px 10px; border: 0; border-radius: 8px; background: none;
+  color: var(--side-text); font: inherit; font-size: 13px; cursor: pointer; text-align: left; opacity: .75; }
+.side-tg:hover { background: var(--side-hover); color: #fff; opacity: 1; }
+.side-tg + .side-tg { margin-top: 0; }
+
+/* ---------- мини-окно: запись, таймер, ход обработки ---------- */
+html.mini #app { grid-template-columns: 1fr; }
+html.mini #side { display: none; }
+.mini-box { display: grid; gap: 12px; padding: 14px 16px; }
+.mini-rec { display: flex; align-items: center; gap: 14px; }
+.mini-rec .bigbtn { width: 64px; height: 64px; margin: 6px; box-shadow: 0 0 0 6px var(--rec-soft); }
+.mini-rec .bigbtn svg.i { width: 30px; height: 30px; }
+.mini-rec .bigbtn.stop svg.i { width: 24px; height: 24px; }
+.mini-mid { flex: 1; min-width: 0; }
+.mini-rec .timer { font-size: 32px; }
+.mini-rec .rec-state { font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mini-work { font-size: 13px; display: grid; gap: 4px; min-height: 40px; }
+.mini-work .mw-t { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mini-work .bar { margin: 2px 0; }
+.mini-work svg.i { width: 15px; height: 15px; vertical-align: -3px; margin-right: 5px; color: var(--ok); }
+.mini-rec .btn[hidden] { display: none; }
+.mini-foot { display: flex; align-items: center; gap: 8px; font-size: 13px; border-top: 1px solid var(--line); padding-top: 10px; }
+.mini-foot .grow { flex: 1; }
+
+/* ---------- компактный вид: в панели только значки, подсказки скрыты ---------- */
+.compact #app { grid-template-columns: 64px 1fr; }
+.compact #side { padding: 14px 10px; align-items: center; }
+.compact .brand { padding: 4px 0 16px; }
+.compact .brand > div, .compact #side .nt { display: none; }
+.compact #side a.nav, .compact .side-tg { justify-content: center; width: 44px; height: 40px; padding: 0; }
+.compact #side a.nav.active::before { left: -10px; }
+.compact #side .badge { position: absolute; top: 2px; right: 0; min-width: 17px; height: 17px; padding: 0 4px; font-size: 10.5px; }
+.compact .recdot { position: absolute; top: 6px; right: 6px; }
+.compact .side-status { width: 44px; padding: 7px 6px; font-size: 0; }
+.compact .side-status .bar { margin-top: 0; }
+.compact .side-status div:not(.bar) { display: none; }
+.compact .side-status:not(:has(.bar)) { display: none; }
+.compact .side-status:not(:has(.bar)) + .side-tg { margin-top: auto; }
+.compact .side-status:has(#reconnect) { display: block; position: fixed; left: 10px; bottom: 60px; width: 210px; padding: 12px; font-size: 12.5px; z-index: 50; }
+.compact .side-status:has(#reconnect) div { display: block; }
+.compact .tip, .compact .help:not(.err) { display: none !important; }
+.compact .rec-page:has(#rs.tip) { max-width: 540px; }
+.compact .rec-layout:has(#rs.tip) { grid-template-columns: 1fr; }
+.compact .page { padding-top: 14px; }
 
 /* ---------- общие элементы ---------- */
 main { overflow: auto; min-width: 0; }
@@ -142,6 +186,7 @@ textarea.input { height: auto; padding: 10px 12px; resize: vertical; }
 .about .facts, .about .steps { margin: 10px 0 0; padding-left: 20px; display: grid; gap: 5px; font-size: 13.5px; }
 .ext-steps { display: grid; gap: 8px; padding-left: 20px; margin: 12px 0; font-size: 14px; }
 .ext-steps code { word-break: break-all; }
+.ext-path { display: flex; align-items: center; gap: 10px; margin: 6px 0 2px; }
 .comp-note { margin-top: 12px; font-size: 12.5px; color: var(--muted); padding: 8px 12px; border-left: 3px solid var(--line); }
 .support { margin-top: 18px; padding-top: 12px; border-top: 1px solid var(--line); font-size: 13.5px; color: var(--muted); text-align: center; }
 .modal:has(.support-box), .modal:has(.welcome) { width: 380px; }

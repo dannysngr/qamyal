@@ -128,6 +128,148 @@ def open_console(args: list, title: str) -> None:
                           "-e", 'tell application "Terminal" to activate'])
 
 
+# ---------- окна программы в Windows: Chrome без адресной строки ----------
+# На Mac окна рисует оболочка Qamyal.app (mac/QamyalApp.swift), там эти функции не нужны.
+
+MINI_TITLE = "Qamyal · "          # заголовок мини-окна начинается так; у основного — ровно «Qamyal»
+
+
+def chrome_exe():
+    import winreg
+    key = r"SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\chrome.exe"
+    for root in (winreg.HKEY_CURRENT_USER, winreg.HKEY_LOCAL_MACHINE):
+        try:
+            p = winreg.QueryValue(root, key)
+            if p and Path(p).exists():
+                return p
+        except OSError:
+            pass
+    for p in (Path.home() / "AppData/Local/Google/Chrome/Application/chrome.exe",
+              Path("C:/Program Files/Google/Chrome/Application/chrome.exe"),
+              Path("C:/Program Files (x86)/Google/Chrome/Application/chrome.exe")):
+        if p.exists():
+            return str(p)
+    return None
+
+
+def open_app_window(url: str, profile: Path, extra: list = ()):
+    """Окно Chrome-приложения (без вкладок и адресной строки) с отдельным профилем программы."""
+    exe = chrome_exe()
+    if not exe:
+        raise RuntimeError("Не найден Google Chrome")
+    return subprocess.Popen([exe, f"--app={url}", f"--user-data-dir={profile}", *extra,
+                             "--no-first-run", "--no-default-browser-check",
+                             "--disable-features=Translate,MediaRouter", "--disable-sync"])
+
+
+def find_window(title: str = "Qamyal", prefix: bool = False):
+    """Видимое окно Chrome-приложения с этим заголовком (prefix — заголовок только начинается так)."""
+    import ctypes
+    from ctypes import wintypes
+    user32 = ctypes.windll.user32
+    found = []
+
+    @ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
+    def each(h, _):
+        if user32.IsWindowVisible(h):
+            t, cls = ctypes.create_unicode_buffer(128), ctypes.create_unicode_buffer(64)
+            user32.GetWindowTextW(h, t, 128)
+            user32.GetClassNameW(h, cls, 64)
+            if (t.value.startswith(title) if prefix else t.value == title) and cls.value.startswith("Chrome_WidgetWin"):
+                found.append(h)
+        return True
+
+    user32.EnumWindows(each, 0)
+    return found[0] if found else None
+
+
+def focus_window(h) -> None:
+    import ctypes
+    user32 = ctypes.windll.user32
+    if user32.IsIconic(h):
+        user32.ShowWindow(h, 9)                                       # SW_RESTORE
+    if not user32.SetForegroundWindow(h):
+        user32.keybd_event(0x12, 0, 0, 0)                             # Alt снимает запрет Windows
+        user32.keybd_event(0x12, 0, 2, 0)                             # на перевод окна вперёд
+        user32.SetForegroundWindow(h)
+
+
+def _set_topmost(h, on: bool) -> None:
+    import ctypes
+    from ctypes import wintypes
+    # HWND_TOPMOST / HWND_NOTOPMOST; SWP_NOSIZE | SWP_NOMOVE | SWP_NOACTIVATE
+    ctypes.windll.user32.SetWindowPos(wintypes.HWND(h), wintypes.HWND(-1 if on else -2), 0, 0, 0, 0, 0x0013)
+
+
+def show_main_window(url: str, profile: Path) -> None:
+    h = find_window()
+    if h:
+        focus_window(h)
+    else:
+        open_app_window(url, profile)
+
+
+def set_mini_top(on: bool) -> None:
+    h = find_window(MINI_TITLE, prefix=True)
+    if h:
+        _set_topmost(h, on)
+
+
+def fix_mini_size(w: int, hh: int) -> None:
+    """Мини-окно постоянного размера: без растягивания за края и без «Развернуть»."""
+    import ctypes
+    from ctypes import wintypes
+    h = find_window(MINI_TITLE, prefix=True)
+    if not h or not (200 <= w <= 900 and 150 <= hh <= 700):
+        return
+    user32 = ctypes.windll.user32
+    if user32.IsZoomed(wintypes.HWND(h)):
+        user32.ShowWindow(wintypes.HWND(h), 9)                        # SW_RESTORE
+    style = user32.GetWindowLongW(wintypes.HWND(h), -16)              # GWL_STYLE
+    user32.SetWindowLongW(wintypes.HWND(h), -16, style & ~(0x00040000 | 0x00010000))  # WS_THICKFRAME, WS_MAXIMIZEBOX
+    # SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED
+    user32.SetWindowPos(wintypes.HWND(h), None, 0, 0, w, hh, 0x0002 | 0x0004 | 0x0010 | 0x0020)
+
+
+def open_mini_window(url: str, profile: Path, top: bool, rect=None) -> None:
+    """Мини-окно: уже открыто — показываем; иначе открываем там, где его оставили (rect — x, y, ширина,
+    высота в точках экрана; окно само сообщает их программе), а в первый раз — в правом нижнем углу."""
+    h = find_window(MINI_TITLE, prefix=True)
+    if h:
+        focus_window(h)
+        _set_topmost(h, top)
+        return
+    open_app_window(url, profile, ["--window-size=400,300"])
+
+    def place():
+        import ctypes
+        import time
+        from ctypes import wintypes
+        user32 = ctypes.windll.user32
+        for _ in range(60):                       # окно получает заголовок, когда страница загрузилась
+            time.sleep(0.25)
+            h = find_window(MINI_TITLE, prefix=True)
+            if h:
+                break
+        else:
+            return
+        sx, sy = user32.GetSystemMetrics(76), user32.GetSystemMetrics(77)          # все мониторы вместе
+        sw, sh = user32.GetSystemMetrics(78), user32.GetSystemMetrics(79)
+        if rect and len(rect) == 4 and sx <= rect[0] and sy <= rect[1] and \
+                rect[0] + rect[2] <= sx + sw and rect[1] + rect[3] <= sy + sh and min(rect[2:]) > 100:
+            x, y, w, hh = (int(v) for v in rect)
+        else:                                    # первый раз или того монитора больше нет
+            wa = wintypes.RECT()
+            user32.SystemParametersInfoW(0x30, 0, ctypes.byref(wa), 0)  # SPI_GETWORKAREA
+            w, hh = 400, 300
+            x, y = wa.right - w - 16, wa.bottom - hh - 16
+        user32.SetWindowPos(wintypes.HWND(h), None, x, y, w, hh, 0x0014)       # SWP_NOZORDER | SWP_NOACTIVATE
+        _set_topmost(h, top)
+
+    import threading
+    threading.Thread(target=place, daemon=True).start()
+
+
 def find_program(name: str, extra: list = ()) -> str:
     """Путь к программе: PATH, затем привычные места. Программу из Dock в macOS запускают с коротким PATH,
     поэтому Homebrew и ~/.local/bin проверяем явно."""
@@ -194,20 +336,6 @@ def machine_info() -> dict:
         pass
     _machine.update(info)
     return _machine
-
-
-def open_chrome_extensions() -> None:
-    """Страница расширений Chrome (chrome://extensions) — отсюда ставится расширение Qamyal."""
-    if IS_WIN:
-        for p in (Path(os.environ.get("ProgramFiles", r"C:\Program Files")) / "Google/Chrome/Application/chrome.exe",
-                  Path(os.environ.get("ProgramFiles(x86)", r"C:\Program Files (x86)")) / "Google/Chrome/Application/chrome.exe",
-                  Path(os.environ.get("LOCALAPPDATA", "")) / "Google/Chrome/Application/chrome.exe"):
-            if p.exists():
-                subprocess.Popen([str(p), "chrome://extensions"])
-                return
-    elif IS_MAC:
-        subprocess.Popen(["/usr/bin/osascript", "-e", 'tell application "Google Chrome" to open location "chrome://extensions"',
-                          "-e", 'tell application "Google Chrome" to activate'])
 
 
 def records_dir(root: Path) -> Path:

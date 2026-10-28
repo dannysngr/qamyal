@@ -228,11 +228,6 @@ def delete_whisper(key: str) -> None:
 # ---------- запуск из окна ----------
 
 def start(cid: str, model: str = "") -> None:
-    if cid == "browser":                          # ставит сам пользователь в Chrome: открываем страницу и папку
-        from sysdeps import open_chrome_extensions, open_path
-        open_path(EXTENSION)
-        open_chrome_extensions()
-        return
     if jobs().get(job_key(cid, model), {}).get("state") == "running":
         raise RuntimeError("Это уже скачивается")
     if cid == "claude":

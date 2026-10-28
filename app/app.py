@@ -3,16 +3,14 @@ Windows: окно Chrome без адресной строки (одно на к�
 macOS: окно рисует оболочка Qamyal.app (mac/QamyalApp.swift); она запускает этот файл с --no-window --parent PID,
 и сервер завершается вместе с ней."""
 import socket
-import subprocess
 import sys
 import threading
 import time
 import urllib.request
 import webbrowser
-from pathlib import Path
 
 from common import APP, JOBS, LOG, PAUSE, SERVER, pid_alive, read_json, write_json
-from sysdeps import IS_WIN
+from sysdeps import IS_WIN, chrome_exe, find_window, focus_window, open_app_window
 
 if IS_WIN:
     import ctypes
@@ -21,24 +19,6 @@ if IS_WIN:
 JOBS.mkdir(exist_ok=True)
 if sys.stdout is None:                       # pythonw: печать и предупреждения — в журнал
     sys.stdout = sys.stderr = open(JOBS / ".app.log", "a", encoding="utf-8", buffering=1)
-
-
-def chrome_exe():
-    import winreg
-    key = r"SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\chrome.exe"
-    for root in (winreg.HKEY_CURRENT_USER, winreg.HKEY_LOCAL_MACHINE):
-        try:
-            p = winreg.QueryValue(root, key)
-            if p and Path(p).exists():
-                return p
-        except OSError:
-            pass
-    for p in (Path.home() / "AppData/Local/Google/Chrome/Application/chrome.exe",
-              Path("C:/Program Files/Google/Chrome/Application/chrome.exe"),
-              Path("C:/Program Files (x86)/Google/Chrome/Application/chrome.exe")):
-        if p.exists():
-            return str(p)
-    return None
 
 
 PROFILE = APP / ".ui-profile"
@@ -78,37 +58,7 @@ def open_window(port: int, page: str = ""):
         return None
     reset_window_size()
     x, y, w, h = window_rect()
-    return subprocess.Popen([exe, f"--app={url}", f"--user-data-dir={PROFILE}",
-                             f"--window-size={w},{h}", f"--window-position={x},{y}",
-                             "--no-first-run", "--no-default-browser-check",
-                             "--disable-features=Translate,MediaRouter", "--disable-sync"])
-
-
-def find_window():
-    """Уже открытое окно программы (окно Chrome-приложения с заголовком Qamyal)."""
-    found = []
-
-    @ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
-    def each(h, _):
-        if user32.IsWindowVisible(h):
-            title, cls = ctypes.create_unicode_buffer(64), ctypes.create_unicode_buffer(64)
-            user32.GetWindowTextW(h, title, 64)
-            user32.GetClassNameW(h, cls, 64)
-            if title.value == "Qamyal" and cls.value.startswith("Chrome_WidgetWin"):
-                found.append(h)
-        return True
-
-    user32.EnumWindows(each, 0)
-    return found[0] if found else None
-
-
-def focus_window(h) -> None:
-    if user32.IsIconic(h):
-        user32.ShowWindow(h, 9)                                       # SW_RESTORE
-    if not user32.SetForegroundWindow(h):
-        user32.keybd_event(0x12, 0, 0, 0)                             # Alt снимает запрет Windows
-        user32.keybd_event(0x12, 0, 2, 0)                             # на перевод окна вперёд
-        user32.SetForegroundWindow(h)
+    return open_app_window(url, PROFILE, [f"--window-size={w},{h}", f"--window-position={x},{y}"])
 
 
 def single_instance() -> bool:

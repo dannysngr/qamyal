@@ -15,7 +15,8 @@
 import Cocoa
 import WebKit
 
-final class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNavigationDelegate, WKScriptMessageHandler {
+final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKUIDelegate, WKNavigationDelegate,
+                         WKScriptMessageHandler {
     var window: NSWindow!
     var web: WKWebView!
     var server: Process?
@@ -42,6 +43,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNaviga
                           styleMask: [.titled, .closable, .miniaturizable, .resizable],
                           backing: .buffered, defer: false)
         window.title = "Qamyal"
+        window.isReleasedWhenClosed = false                  // при открытом мини-окне основное можно закрыть и вернуть
         window.minSize = NSSize(width: 860, height: 560)
         window.center()
         window.setFrameAutosaveName("QamyalMain")          // размер и место окна запоминаются
@@ -116,7 +118,65 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNaviga
     }
 
     func userContentController(_ c: WKUserContentController, didReceive message: WKScriptMessage) {
-        if message.body as? String == "retry", setup == nil { runSetup() }
+        if message.body as? String == "retry", setup == nil { runSetup(); return }
+        // мини-окно (страница /mini): открыть, «поверх всех окон», показать основное окно
+        guard let m = message.body as? [String: Any] else { return }
+        if let top = m["top"] as? Bool {
+            miniTop = top
+            mini?.level = top ? .floating : .normal
+        }
+        switch m["do"] as? String {
+        case "open": openMini()
+        case "main":
+            window.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
+        default: break
+        }
+    }
+
+    // ---------- мини-окно: запись, таймер, «Отметить момент», ход обработки ----------
+
+    var mini: NSWindow?
+    var miniTop = false
+
+    func openMini() {
+        if let w = mini {
+            w.makeKeyAndOrderFront(nil)
+            return
+        }
+        guard let port = serverPort() else { return }
+        // размер постоянный — под содержимое (как W×H в pageMini); растянуть и развернуть нельзя
+        let size = NSSize(width: 380, height: 260)
+        let w = NSWindow(contentRect: NSRect(origin: .zero, size: size),
+                         styleMask: [.titled, .closable, .miniaturizable],
+                         backing: .buffered, defer: false)
+        w.title = "Qamyal"
+        w.isReleasedWhenClosed = false
+        let cfg = WKWebViewConfiguration()
+        cfg.websiteDataStore = .default()
+        cfg.userContentController.add(self, name: "qamyal")
+        let v = WKWebView(frame: .zero, configuration: cfg)
+        v.uiDelegate = self
+        v.navigationDelegate = self
+        v.setValue(false, forKey: "drawsBackground")
+        w.contentView = v
+        // место запоминается; в первый раз — правый нижний угол экрана
+        if !w.setFrameUsingName("QamyalMini"), let s = NSScreen.main?.visibleFrame {
+            w.setFrameOrigin(NSPoint(x: s.maxX - w.frame.width - 16, y: s.minY + 16))
+        }
+        w.setContentSize(size)
+        w.setFrameAutosaveName("QamyalMini")
+        w.level = miniTop ? .floating : .normal
+        w.collectionBehavior = [.fullScreenAuxiliary]       // видно и рядом с Zoom во весь экран
+        w.delegate = self
+        v.load(URLRequest(url: URL(string: "http://127.0.0.1:\(port)/mini")!))
+        w.makeKeyAndOrderFront(nil)
+        mini = w
+    }
+
+    // закрытое мини-окно не держим: иначе его страница продолжала бы опрашивать программу
+    func windowWillClose(_ note: Notification) {
+        if let w = note.object as? NSWindow, w === mini { mini = nil }
     }
 
     func js(_ code: String) { web.evaluateJavaScript(code, completionHandler: nil) }

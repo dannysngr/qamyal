@@ -13,7 +13,7 @@ const ICONS = {
   check: '<path d="M9 11l3 3 8-8"/><path d="M20 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>',
   users: '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0M16 4.5a3.5 3.5 0 0 1 0 7M18 14.2a6.5 6.5 0 0 1 3.5 5.8"/>',
   book: '<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20V3H6.5A2.5 2.5 0 0 0 4 5.5z"/><path d="M4 19.5A2.5 2.5 0 0 0 6.5 22H20v-5"/>',
-  gear: '<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M2 12h3M19 12h3M4.9 19.1L7 17M17 7l2.1-2.1"/>',
+  gear: '<path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/>',
   search: '<circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/>',
   play: '<path d="M7 4.5v15l13-7.5z"/>',
   pause: '<path d="M6.5 4h4v16h-4zM13.5 4h4v16h-4z"/>',
@@ -37,9 +37,28 @@ const ICONS = {
   copy: '<rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h8"/>',
   info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5h.01"/>',
   download: '<path d="M12 4v12M7 11l5 5 5-5M4 20h16"/>',
+  shrink: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16M16 10l-2 2 2 2"/>',
+  grow: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16M14 10l2 2-2 2"/>',
+  mini: '<rect x="3" y="4" width="18" height="16" rx="2"/><rect x="12" y="12" width="6" height="5" rx="1"/>',
 };
 const icon = (n, cls = '') => `<svg class="i ${cls}" viewBox="0 0 24 24">${ICONS[n] || ''}</svg>`;
 $$('[data-icon]').forEach(e => { e.outerHTML = icon(e.dataset.icon); });
+
+const MINI = location.pathname === '/mini';            // мини-окно (тот же интерфейс, свой адрес)
+const MAC_SHELL = window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.qamyal;
+$('#mini-tg').onclick = () => miniAction('open').catch(fail);
+
+/* Компактный вид — для тех, кто уже освоился: в панели слева только значки, подсказки скрыты */
+function drawCompactToggle() {
+  const on = document.documentElement.classList.contains('compact'), b = $('#compact-tg');
+  b.innerHTML = on ? icon('grow') : `${icon('shrink')}<span class="nt">Компактный вид</span>`;
+  b.title = on ? 'Полный вид' : 'Компактный вид: только значки, без подсказок';
+}
+$('#compact-tg').onclick = () => {
+  store('compact', document.documentElement.classList.toggle('compact'));
+  drawCompactToggle();
+};
+drawCompactToggle();
 
 /* ---------- мелочи ---------- */
 
@@ -150,6 +169,7 @@ function route() {
   const nav = parts[0] === 'job' ? 'lib' : parts[0];
   $$('#side a.nav').forEach(a => a.classList.toggle('active', a.dataset.nav === nav));
   view.scrollTop = 0;
+  if (MINI) return pageMini();
   const pages = { rec: pageRec, lib: pageLib, job: () => pageJob(parts[1], q), tasks: pageTasks,
     voices: pageVoices, glossary: pageGlossary, settings: pageSettings, about: pageAbout };
   (pages[parts[0]] || pageLib)(q);
@@ -243,6 +263,7 @@ function renderSide() {
   } else {
     box.innerHTML = '<span>Все записи обработаны</span>';
   }
+  box.title = box.textContent.replace(/\s+/g, ' ').trim();   // в компактном виде от карточки остаётся полоска
 }
 setInterval(pollState, 1500);
 
@@ -284,7 +305,7 @@ const pickFiles = () => $('#filepick').click();
 
 function pageRec() {
   const gone = pageGuard();
-  view.innerHTML = `<div class="page">
+  view.innerHTML = `<div class="page rec-page">
     <div class="head"><h1>Диктофон</h1><div class="grow"></div>
       <button class="btn" id="upl">${icon('upload')}Загрузить готовую запись</button></div>
     ${speechNote()}
@@ -305,16 +326,16 @@ function pageRec() {
           <button data-v="both" class="${src === 'both' ? 'on' : ''}" style="flex:1">${icon('call')}Созвон</button>
           <button data-v="system" class="${src === 'system' ? 'on' : ''}" style="flex:1">${icon('screen')}Звук ПК</button>
         </div>
-        <div class="small muted" id="srchelp" style="margin-top:5px"></div></div>
+        <div class="small muted tip" id="srchelp" style="margin-top:5px"></div></div>
       <div class="field svc" id="svcrow"><label class="lbl" for="svc">Через что созвон</label>
         <select class="input" id="svc">${Object.entries(services).map(([k, v]) => `<option value="${k}" ${k === cfg.rec_service ? 'selected' : ''}>${esc(v[0].toUpperCase() + v.slice(1))}</option>`).join('')}</select>
-        <span class="small muted" id="svchelp"></span></div>
+        <span class="small muted tip" id="svchelp"></span></div>
       <div class="field"><input class="input" id="rname" placeholder="Название, например: Созвон с Рафаэлем про моторы"
         title="Имена в названии помогают правильно подписать участников"></div>
       <div class="field"><label class="lbl">Сколько человек будет говорить, вместе с вами</label>
         <div class="seg" id="npl" style="display:flex" title="Если знаете — укажите: голоса разделятся точнее">${['не знаю', 2, 3, 4, 5, '6+'].map((v, k) => `<button data-n="${k ? (v === '6+' ? 6 : v) : 0}" class="${k === 0 ? 'on' : ''}" style="flex:${k ? 1 : 1.6};justify-content:center;white-space:nowrap">${v}</button>`).join('')}</div></div>
       <div class="field"><label class="switch"><input type="checkbox" id="rlive" ${cfg.rec_live ? 'checked' : ''}><i></i>
-        <span>Живая расшифровка <span class="small muted">— текст появляется во время записи</span></span></label></div>
+        <span>Живая расшифровка <span class="small muted tip">— текст появляется во время записи</span></span></label></div>
       <div class="rec-go"><button class="bigbtn" id="go" title="Начать запись">${icon('mic')}</button>
         <div><div class="timer muted">00:00</div><div class="rec-state">Нажмите, чтобы начать запись</div></div></div>
       ${lastJob ? `<div class="note" style="margin-top:12px">Запись сохранена и отправлена на расшифровку. <a href="#/job/${lastJob}">Открыть</a></div>` : ''}`;
@@ -348,6 +369,7 @@ function pageRec() {
         tick();
       } catch (e) { fail(e); }
     };
+    $('#rs').classList.add('tip');
     $('#rs').innerHTML = `<h2>Подсказки</h2>
       <div class="muted small" style="display:grid;gap:9px">
         <div>${icon('call')} <b>Созвон</b> пишет вас и собеседников одновременно: ваш голос — в левом канале, их — в правом.</div>
@@ -382,8 +404,9 @@ function pageRec() {
     $('#cancel').onclick = () => { if (confirm('Удалить эту запись без сохранения?')) stop(true); };
     $('#mk').onclick = mark;
     $('#pz').onclick = () => api('/api/rec/' + ($('#pz').dataset.s === 'paused' ? 'resume' : 'pause'), {}).then(tick).catch(fail);
+    $('#rs').classList.toggle('tip', !st.live);
     $('#rs').innerHTML = st.live
-      ? `<div class="live-head"><h2 style="margin:0">Живая расшифровка</h2><span class="grow"></span><span class="small muted" id="lag"></span></div>
+      ?`<div class="live-head"><h2 style="margin:0">Живая расшифровка</h2><span class="grow"></span><span class="small muted" id="lag"></span></div>
          <div class="live-text" id="lt"></div><div class="live-pending" id="lp"></div>`
       : `<h2>Живая расшифровка выключена</h2><div class="muted">Текст появится после остановки записи — в полной расшифровке.</div>`;
     if (both) $('#rm').classList.add('both');
@@ -462,8 +485,132 @@ function pageRec() {
 }
 
 window.addEventListener('beforeunload', e => {
-  if (ST && (ST.rec.state === 'recording' || ST.rec.state === 'paused')) { e.preventDefault(); e.returnValue = ''; }
+  if (!MINI && ST && (ST.rec.state === 'recording' || ST.rec.state === 'paused')) { e.preventDefault(); e.returnValue = ''; }
 });
+
+/* =====================================================================
+   МИНИ-ОКНО: запись, таймер, «Отметить момент», ход обработки
+   ===================================================================== */
+
+/** Окнами на Mac управляет оболочка Qamyal.app (ей пишем сами), в Windows — программа (sysdeps). */
+async function miniAction(action, extra = {}) {
+  const r = await api('/api/mini', { action, ...extra });
+  if (MAC_SHELL) MAC_SHELL.postMessage({ do: action, top: r.top });
+  return r;
+}
+
+function pageMini() {
+  document.title = 'Qamyal · ' + tr('мини');
+  view.innerHTML = `<div class="mini-box">
+    <div class="mini-rec">
+      <button class="bigbtn" id="mgo"></button>
+      <div class="mini-mid"><div class="timer" id="mt">00:00</div><div class="rec-state" id="mst"></div></div>
+      <button class="btn" id="mmk" title="Отметить момент (M)" hidden>${icon('star')}</button>
+      <button class="btn" id="mpz" hidden></button>
+    </div>
+    <div class="mini-work" id="mw"></div>
+    <div class="mini-foot">
+      <label class="switch"><input type="checkbox" id="mtop"><i></i><span>Поверх всех окон</span></label>
+      <span class="grow"></span>
+      <button class="btn sm ghost" id="mmain" title="Основное окно Qamyal">${icon('grow')}Открыть Qamyal</button></div></div>`;
+  const SRC = { mic: 'Разговор', both: 'Созвон', system: 'Звук ПК' };
+  let state = '', busy = false, src = '', lastWork = '';
+  const loadSrc = () => api('/api/settings').then(r => {
+    const s = r.settings;
+    src = SRC[s.rec_source] + (s.rec_source !== 'mic' && r.services[s.rec_service] ? ' · ' + r.services[s.rec_service] : '');
+  }).catch(() => {});
+
+  async function tick() {
+    if (busy) return;
+    busy = true;
+    try {
+      const st = await api('/api/rec?from=999999');
+      const active = st.state === 'recording' || st.state === 'paused';
+      if (st.state !== state) {
+        state = st.state;
+        $('#mgo').classList.toggle('stop', active);
+        $('#mgo').innerHTML = icon(active ? 'stop' : 'mic');
+        $('#mgo').title = active ? 'Стоп и расшифровать' : 'Начать запись';
+        $('#mmk').hidden = $('#mpz').hidden = !active;
+        $('#mpz').innerHTML = icon(state === 'paused' ? 'play' : 'pause');
+        $('#mpz').title = state === 'paused' ? 'Продолжить' : 'Пауза';
+        $('.mini-rec').classList.toggle('recording-now', state === 'recording');
+        if (!active) loadSrc();            // источник могли поменять в основном окне
+      }
+      $('#mt').textContent = fmtT(active ? st.elapsed : 0);
+      $('#mt').classList.toggle('muted', !active);
+      $('#mst').innerHTML = st.error ? `<span style="color:var(--rec)">${esc(st.error)}</span>`
+        : state === 'paused' ? 'Пауза' : active ? '<span style="color:var(--rec)">● Идёт запись</span>' : esc(src);
+    } catch { /* программа перезапускается — следующий опрос покажет */ } finally { busy = false; }
+  }
+
+  function work() {
+    if (!ST) return;
+    let h;
+    if (ST.download) {
+      const dl = ST.download, pct = dl.total ? Math.min(100, Math.round(dl.done * 100 / dl.total)) : 0;
+      h = `<div><b>Скачиваю</b> <span class="muted">${esc(dl.step || 'Начинаю…')}${dl.total ? ` · ${pct}%` : ''}</span></div>
+        <div class="bar${dl.total ? '' : ' busy'}"><i style="width:${dl.total ? pct : 100}%"></i></div>`;
+    } else if (ST.work.length) {
+      const w = ST.work[0], cur = w.status === 'working';
+      h = `<div class="mw-t"><b>${esc(w.name)}</b></div>
+        <div class="muted">${cur ? `${esc(w.stage_label)} · ${w.progress}%` : 'ждёт очереди'}</div>
+        <div class="bar"><i style="width:${cur ? w.progress : 0}%"></i></div>` +
+        (ST.work.length > 1 ? `<div class="muted">и ещё ${ST.work.length - 1} в очереди</div>` : '');
+    } else h = `<div class="muted">${icon('check')}<span>Все записи обработаны</span></div>`;
+    if (h !== lastWork) { lastWork = h; $('#mw').innerHTML = h; }
+  }
+
+  $('#mgo').onclick = async () => {
+    const active = state === 'recording' || state === 'paused';
+    try {
+      if (active) {
+        const r = await api('/api/rec/stop', { discard: false });
+        if (r.job) toast('Запись сохранена — началась расшифровка');
+      } else await api('/api/rec/start', {});
+    } catch (e) { fail(e); }
+    tick();
+  };
+  const mark = () => api('/api/rec/mark', {}).then(() => toast('★ Момент отмечен')).catch(fail);
+  $('#mmk').onclick = mark;
+  $('#mpz').onclick = () => api('/api/rec/' + (state === 'paused' ? 'resume' : 'pause'), {}).then(tick).catch(fail);
+  $('#mmain').onclick = () => miniAction('main').catch(fail);
+  api('/api/mini').then(r => { $('#mtop').checked = r.top; }).catch(() => {});
+  $('#mtop').onchange = e => miniAction('top', { top: e.target.checked }).catch(fail);
+  const onKey = e => {
+    if ((e.key === 'm' || e.key === 'M' || e.key === 'ь' || e.key === 'Ь') && (state === 'recording' || state === 'paused')) {
+      e.preventDefault(); mark();
+    }
+  };
+  document.addEventListener('keydown', onKey);
+  onLeave(() => document.removeEventListener('keydown', onKey));
+  // Размер мини-окна постоянный: столько, сколько нужно содержимому. На Mac его задаёт оболочка;
+  // в Windows рамку окна знает только страница — она и просит программу поставить нужный размер.
+  const W = 380, H = 260;
+  // /mini, открытый обычной вкладкой браузера (с адресной строкой), окном мини-окна не командует
+  const appWin = () => !MAC_SHELL && outerHeight - innerHeight < 80;
+  const fit = first => {                   // первый раз — всегда: программа заодно убирает растягивание
+    if (!appWin() || (!first && innerWidth === W && innerHeight === H)) return;
+    api('/api/mini', { size: [outerWidth - innerWidth + W, outerHeight - innerHeight + H] }).catch(() => {});
+  };
+  let fitT = 0;
+  const onResize = () => { clearTimeout(fitT); fitT = setTimeout(fit, 300); };
+  addEventListener('resize', onResize);
+  onLeave(() => removeEventListener('resize', onResize));
+  setTimeout(() => fit(true), 800);
+  // Windows: Chrome не помнит место мини-окна — запоминает программа (на Mac помнит оболочка)
+  let lastRect = '';
+  const saveRect = () => {
+    const rect = [screenX, screenY, outerWidth, outerHeight];     // те же точки, что видит программа в Windows
+    if (!appWin() || rect.join() === lastRect) return;
+    if (lastRect) api('/api/mini', { rect }).catch(() => {});
+    lastRect = rect.join();                // первое измерение — только запоминаем: окно ещё ставится на место
+  };
+  loadSrc().then(() => { state = ''; tick(); });
+  every(500, tick);
+  every(1500, () => { work(); saveRect(); });
+  work();
+}
 
 /* =====================================================================
    ЗАПИСИ
@@ -645,7 +792,7 @@ function jobProgress(id, data) {
                Можно закрыть окно — обработка продолжится, а когда закончится, придёт уведомление.</div>`}
         <div class="stages">${stages.map(([k, l]) => `<span class="${doneKeys.includes(k) ? 'done' : j.stage === k ? 'cur' : ''}">${l}</span>`).join('')}</div>
       </div>
-      ${d.live && d.live.length ? `<div class="card"><h2>Черновик живой расшифровки</h2><div class="muted small" style="margin-bottom:8px">Это быстрый черновик, записанный во время разговора. Чистовой текст с именами появится после обработки.</div>
+      ${d.live && d.live.length ? `<div class="card"><h2>Черновик живой расшифровки</h2><div class="muted small tip" style="margin-bottom:8px">Это быстрый черновик, записанный во время разговора. Чистовой текст с именами появится после обработки.</div>
         ${d.live.map(s => `<div class="live-line"><span class="t">${fmtT(s.t)}</span><span>${esc(s.text)}</span></div>`).join('')}</div>` : ''}
     </div>`;
     if ($('#retry')) $('#retry').onclick = () => api(`/api/job/${id}/retry`, {}).then(() => toast('Снова в очереди')).catch(fail);
@@ -966,7 +1113,7 @@ function jobDone(id, data, q) {
         ${recog.length ? `<div class="small muted" style="margin-top:8px">Узнаны по голосу: ${recog.map(r => esc(r.name)).join(', ')}</div>` : ''}</div>` : ''}
     ${marks.length ? `<div class="card"><h2>Отмеченные моменты</h2>${marks.map(m => `<div style="margin:4px 0"><a href="#" class="cite" data-seek="${m.t}">★ ${fmtT(m.t)}</a> ${esc(m.note || nearText(m.t))}</div>`).join('')}</div>` : ''}
     <div class="card"><h2>${icon('spark')} Чат с записью</h2>
-      <div class="muted small">Спросите о разговоре или скажите, что исправить в расшифровке — правка сразу применится, её можно отменить.</div>
+      <div class="muted small tip">Спросите о разговоре или скажите, что исправить в расшифровке — правка сразу применится, её можно отменить.</div>
       <div class="suggest">${['Что решили?', 'Что я пообещал сделать?', 'Проверь, правильно ли подписаны участники', 'Что осталось нерешённым?'].map(s => `<button>${s}</button>`).join('')}</div>
       <div class="qa" id="qa"></div>
       <div style="display:flex;gap:8px;margin-top:10px;align-items:flex-end"><textarea class="input" id="qi" rows="2" placeholder="Например: тут говорят только я и Рафаэль — исправь"></textarea><button class="btn primary" id="qb" title="Отправить (Enter)">${icon('chat')}</button></div></div>
@@ -1070,7 +1217,7 @@ async function pageTasks() {
       ${projects.length ? `<select class="input" id="fp" style="width:auto;max-width:260px"><option value="">Все проекты</option>
         ${projects.map(p => `<option ${p === proj ? 'selected' : ''}>${esc(p)}</option>`).join('')}</select>` : ''}
       <div class="seg" id="fs"><button data-v="open">Открытые</button><button data-v="done">Сделанные</button><button data-v="all">Все</button></div></div>
-      <div class="muted" style="margin:-8px 0 16px">${open ? `На вас ${open} ${plural(open, 'открытая задача', 'открытые задачи', 'открытых задач')} из всех встреч.` : 'Открытых задач на вас нет.'} Задачи берутся из кратких содержаний расшифровок.</div>
+      <div class="muted" style="margin:-8px 0 16px">${open ? `На вас ${open} ${plural(open, 'открытая задача', 'открытые задачи', 'открытых задач')} из всех встреч.` : 'Открытых задач на вас нет.'} <span class="tip">Задачи берутся из кратких содержаний расшифровок.</span></div>
       ${order.map(k => { const g = groups[k]; return `<div class="card taskgroup">
         <div class="gh"><span class="pgh">${k ? projChip(k) : '<span class="proj empty">Без проекта</span>'}</span>
           <span class="muted small">${g.items.length} ${plural(g.items.length, 'задача', 'задачи', 'задач')}</span></div>
@@ -1220,7 +1367,7 @@ async function pageSettings() {
     <div class="row"><label>Кто делает итог</label><div>
       <label class="radio"><input type="radio" name="ed" value="claude" ${s.editor === 'claude' ? 'checked' : ''}><span><b>Claude Code</b> (подписка Claude)<br><span class="help">Текст расшифровки (не звук) уходит в Claude.</span></span></label>
       <label class="radio"><input type="radio" name="ed" value="codex" ${s.editor === 'codex' ? 'checked' : ''} ${cx.installed ? '' : 'disabled'}><span><b>Codex</b> (подписка ChatGPT)<br><span class="help">Текст расшифровки (не звук) уходит в ChatGPT.</span>
-        ${!cx.installed ? '<div class="help" style="color:var(--rec)">Codex на этом компьютере не установлен.</div>'
+        ${!cx.installed ? '<div class="help err" style="color:var(--rec)">Codex на этом компьютере не установлен.</div>'
           : !cx.logged_in ? `<div style="margin-top:6px"><button class="btn sm" id="cxl">Войти в ChatGPT</button> <span class="help">откроется браузер, вход — на сайте OpenAI</span></div>` : ''}</span></label>
       <label class="radio"><input type="radio" name="ed" value="openai" ${s.editor === 'openai' ? 'checked' : ''}><span><b>Локальная модель</b> (Ollama, LM Studio)<br><span class="help">Всё на компьютере, но на этом ноутбуке медленно и слабее.</span>
         <div id="localcfg" style="display:${s.editor === 'openai' ? 'grid' : 'none'};grid-template-columns:1fr 160px;gap:4px 8px;margin-top:8px">
@@ -1232,7 +1379,7 @@ async function pageSettings() {
       <div class="help">Лучше английские слова и имена. Без него обработка почти вдвое быстрее.</div></div></div>
     <div class="row"><label>Микрофон</label><div><select class="input" id="mc" style="max-width:420px"><option value="">По умолчанию (${esc(d.default_mic || '—')})</option>
       ${(d.mics || []).map(m => `<option ${m === s.mic_device ? 'selected' : ''}>${esc(m)}</option>`).join('')}</select>
-      ${d.error ? `<div class="help" style="color:var(--rec)">${esc(d.error)}</div>` : ''}</div></div>
+      ${d.error ? `<div class="help err" style="color:var(--rec)">${esc(d.error)}</div>` : ''}</div></div>
     <div class="row"><label>Язык</label><div><div class="seg" id="lg" translate="no">
       ${[['ru', 'Русский'], ['en', 'English'], ['ce', 'Нохчийн']].map(([v, l]) => `<button data-v="${v}" class="${window.LANG === v ? 'on' : ''}">${l}</button>`).join('')}</div></div></div>
     <div class="row"><label>Тема</label><div><div class="seg" id="th">
@@ -1241,7 +1388,7 @@ async function pageSettings() {
     <div class="row"><label>Где лежат записи</label><div><code>${esc(r.paths.jobs)}</code> <button class="btn sm" id="of" style="margin-left:8px">${icon('folder')}Открыть</button></div></div>
   </div></div>
   <div class="card" style="margin-top:14px"><h2>Проекты</h2>
-    <div class="muted small" style="margin-bottom:10px">По описанию ИИ решает, к какому проекту относится разговор. Новые проекты он добавляет сам; здесь их можно переименовать, уточнить описание или удалить (у записей пометка снимется).</div>
+    <div class="muted small tip" style="margin-bottom:10px">По описанию ИИ решает, к какому проекту относится разговор. Новые проекты он добавляет сам; здесь их можно переименовать, уточнить описание или удалить (у записей пометка снимется).</div>
     <div id="plist" style="display:grid;gap:8px"></div>
     <div style="display:flex;gap:8px;margin-top:10px"><button class="btn sm" id="padd">Добавить проект</button><button class="btn sm primary" id="psave" disabled>Сохранить проекты</button></div></div></div>`;
   let projs = [];
@@ -1406,11 +1553,11 @@ function drawComps(gone) {
       `<button class="btn sm primary" ${attrs}>${icon('download')}${resume ? 'Продолжить' : 'Скачать'}</button>` +
       (size ? `<div class="dlsize">${esc(size)}</div>` : '');
     const failed = (id, model) => jobOf(id, model).state === 'error';
-    const errLine = (id, model) => failed(id, model) ? `<div class="help" style="color:var(--rec)">${esc(jobOf(id, model).error)}</div>` : '';
+    const errLine = (id, model) => failed(id, model) ? `<div class="help err" style="color:var(--rec)">${esc(jobOf(id, model).error)}</div>` : '';
     const variant = v => {
       let right;
       if (running('whisper', v.key)) right = progress(jobOf('whisper', v.key));
-      else if (v.active && v.downloaded) right = `<span class="ok">${icon('check')}Используется</span>`;
+      else if (v.active && v.downloaded) right = `<span class="ok">${icon('check')}Установлено</span>`;
       else if (v.downloaded) right = `<button class="btn sm" data-use="${v.key}">Использовать</button>` +
         (v.deletable ? ` <button class="btn sm ghost danger" data-del="${v.key}" title="Удалить с компьютера">${icon('trash')}</button>` : '');
       else right = getBtn(`data-get="whisper" data-model="${v.key}"`, failed('whisper', v.key), v.size);
@@ -1421,7 +1568,7 @@ function drawComps(gone) {
       const a = x.advice || {}, m = a.machine || {};
       const pc = [m.model, m.chip].filter(Boolean).map(s => `<span translate="no">${esc(s)}</span>`).join(', ');
       return `<table class="vt"><tbody>${x.variants.map(variant).join('')}</tbody></table>
-        ${a.key ? `<div class="advice">${icon('screen')}<div><span>Ваш компьютер:</span> ${pc}${m.ram_gb ? `, <span>${m.ram_gb} ГБ памяти</span>` : ''}.<br>
+        ${a.key ? `<div class="advice tip">${icon('screen')}<div><span>Ваш компьютер:</span> ${pc}${m.ram_gb ? `, <span>${m.ram_gb} ГБ памяти</span>` : ''}.<br>
           <span>Советуем:</span> <b translate="no">${esc(a.key)}</b> — <span>${esc(a.why)}</span>.</div></div>` : ''}`;
     };
     const row = x => {
@@ -1436,12 +1583,12 @@ function drawComps(gone) {
         <div class="help">${esc(x.about)}</div>
         <ul class="parts">${(x.parts || []).map(p => `<li><b>${esc(p.name)}</b> — <i>${esc(p.what)}</i>
           <span class="src">${p.size ? `<span>${esc(p.size)}</span> · ` : ''}<span translate="no">${esc(p.from)}</span></span></li>`).join('')}</ul>
-        ${x.note ? `<div class="comp-note">${esc(x.note)}</div>` : ''}${x.ready ? '' : errLine(x.id)}</div>
+        ${x.note ? `<div class="comp-note tip">${esc(x.note)}</div>` : ''}${x.ready ? '' : errLine(x.id)}</div>
         <div class="comp-r">${right}</div>
         ${x.variants ? `<div class="variants">${variants(x)}</div>` : ''}</div>`;
     };
     box.innerHTML = `<h2>Модели и дополнения</h2>
-      <div class="muted small" style="margin-bottom:6px">Модели распознавания работают прямо на этом компьютере — записи никуда не уходят. Загрузку можно оставить: она идёт, даже если закрыть окно.</div>
+      <div class="muted small tip" style="margin-bottom:6px">Модели распознавания работают прямо на этом компьютере — записи никуда не уходят. Загрузку можно оставить: она идёт, даже если закрыть окно.</div>
       ${c.items.map(row).join('')}`;
     const act = async (b, path, data, after) => {
       b.disabled = true;
@@ -1449,18 +1596,23 @@ function drawComps(gone) {
     };
     $$('#comps [data-get]').forEach(b => b.onclick = () => act(b, '/api/components/' + b.dataset.get, { model: b.dataset.model || '' },
       b.dataset.get === 'claude' ? () => toast('Откроется Терминал: установка Claude Code, затем вход в ваш аккаунт Claude') : null));
-    $$('#comps [data-ext]').forEach(b => b.onclick = async () => {
+    // Chrome не даёт другим программам открыть chrome://extensions (вместо неё — пустое окно),
+    // поэтому только шаги и кнопки «Копировать»
+    $$('#comps [data-ext]').forEach(b => b.onclick = () => {
       const folder = (c.items.find(x => x.id === 'browser') || {}).folder || '';
-      try { await api('/api/components/browser', {}); } catch (e) { return fail(e); }
+      const mac = /Mac/.test(navigator.userAgent);
+      const copyBtn = text => `<button class="btn sm ghost" data-copy="${esc(text)}">${icon('copy')}Копировать</button>`;
       const m = modal(`<h2>Расширение для Chrome</h2>
-        <p class="muted">Ставится один раз. Открылись страница расширений Chrome и папка с расширением.</p>
+        <p class="muted">Ставится один раз, вручную: Chrome не даёт программам открывать свою страницу расширений.</p>
         <ol class="ext-steps">
+          <li>Откройте Chrome, вставьте в адресную строку <code translate="no">chrome://extensions</code> и нажмите Enter. ${copyBtn('chrome://extensions')}</li>
           <li>В Chrome справа вверху включите <b>«Режим разработчика»</b>.</li>
-          <li>Нажмите <b>«Загрузить распакованное расширение»</b>.</li>
-          <li>Выберите папку <code translate="no">${esc(folder)}</code> — та, что открылась.</li>
+          <li>Нажмите <b>«Загрузить распакованное расширение»</b> и выберите папку
+            <div class="ext-path"><code translate="no">${esc(folder)}</code>${copyBtn(folder)}</div><div class="muted small">${mac ? 'В окне выбора нажмите ⌘⇧G и вставьте путь.' : 'Путь можно вставить в поле «Папка» внизу окна выбора.'}</div></li>
         </ol>
         <p class="muted small">Готово, когда здесь у расширения появится «Установлено». В созвоне выберите в Диктофоне «Созвон» и сервис.</p>
         <div style="text-align:right"><button class="btn primary" id="extok">Понятно</button></div>`);
+      $$('[data-copy]', m).forEach(x => x.onclick = () => navigator.clipboard.writeText(x.dataset.copy).then(() => toast('Скопировано')));
       $('#extok', m).onclick = () => m.remove();
     });
     $$('#comps [data-use]').forEach(b => b.onclick = () => act(b, '/api/components/whisper/use', { model: b.dataset.use },

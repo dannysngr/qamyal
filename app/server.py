@@ -21,6 +21,7 @@ from recorder import Recorder, devices
 from sysdeps import IS_WIN, open_console, open_path
 
 WEB = APP / "web"
+UI_PROFILE = APP / ".ui-profile"       # профиль Chrome для окон программы (Windows), тот же, что в app.py
 bottle.BaseRequest.MEMFILE_MAX = 64 * 1024 * 1024
 app = bottle.Bottle()
 rec = Recorder()
@@ -138,6 +139,7 @@ def body() -> dict:
 # ---------- страницы ----------
 
 @app.get("/")
+@app.get("/mini")          # мини-окно: свой адрес — у Chrome свой запомненный размер окна, не как у основного
 def index():
     return static_file("index.html", root=str(WEB))
 
@@ -258,7 +260,7 @@ def components_get():
     return components.status()
 
 
-@app.post("/api/components/<cid:re:speech|whisper|claude|browser>")
+@app.post("/api/components/<cid:re:speech|whisper|claude>")
 def components_start(cid):
     import components
     try:
@@ -955,10 +957,49 @@ def codex_login():
 def settings_set():
     s = load_settings()
     allowed = {"editor", "claude_model", "codex_model", "openai_url", "openai_model", "whisper", "user_name",
-               "notify", "theme", "lang", "rec_source", "rec_live", "rec_service", "mic_device"}
+               "notify", "theme", "lang", "rec_source", "rec_live", "rec_service", "mic_device", "mini_top"}
     s.update({k: v for k, v in body().items() if k in allowed})
     save_settings(s)
     return {"settings": s}
+
+
+_mini_lock = threading.Lock()
+
+
+@app.get("/api/mini")
+def mini_get():
+    return {"top": bool(load_settings().get("mini_top"))}
+
+
+@app.post("/api/mini")
+def mini_set():
+    """Мини-окно. open — открыть (или показать), top — поверх всех окон или нет, main — показать основное окно.
+    В Windows окнами управляет программа; на Mac — оболочка Qamyal.app (страница пишет ей сама)."""
+    b = body()
+    with _mini_lock:                             # место окна и «поверх всех» приходят одновременно — не затираем
+        s = load_settings()
+        if "top" in b:
+            s["mini_top"] = bool(b["top"])
+        rect = b.get("rect")                     # где мини-окно (Windows: Chrome сам не помнит)
+        if isinstance(rect, list) and len(rect) == 4 and rect[2] <= 900 and rect[3] <= 700:   # не обычная вкладка
+            s["mini_rect"] = [int(v) for v in rect]
+        if "top" in b or "rect" in b:
+            save_settings(s)
+    if IS_WIN:
+        import sysdeps
+        base = f"http://127.0.0.1:{request.urlparts.port}"
+        try:
+            if b.get("action") == "open":
+                sysdeps.open_mini_window(base + "/mini", UI_PROFILE, s["mini_top"], s.get("mini_rect"))
+            elif b.get("action") == "main":
+                sysdeps.show_main_window(base + "/", UI_PROFILE)
+            elif "top" in b:
+                sysdeps.set_mini_top(s["mini_top"])
+            if isinstance(b.get("size"), list):
+                sysdeps.fix_mini_size(*(int(v) for v in b["size"][:2]))
+        except RuntimeError as e:
+            bottle.abort(409, str(e))
+    return {"top": s["mini_top"]}
 
 
 @app.post("/api/open-folder")
