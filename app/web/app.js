@@ -1400,6 +1400,7 @@ function drawComps(gone) {
       else if (x.ready) right = `<span class="ok">${icon('check')}Установлено</span>`;
       else if (mine && busy) right = progress();
       else if (x.id === 'claude') right = `<button class="btn sm" data-get="claude" ${busy ? 'disabled' : ''}>${icon('spark')}Установить</button>`;
+      else if (x.id === 'browser') right = `<button class="btn sm primary" data-ext="1">${icon('screen')}Установить</button>`;
       else right = getBtn(`data-get="${x.id}"`, busy, failed(x.id), x.size);
       return `<div class="comp"><div><b class="ctitle">${esc(x.title)}</b>${x.need ? ' <span class="need">нужно</span>' : ''}
         <div class="help">${esc(x.about)}</div>
@@ -1418,6 +1419,20 @@ function drawComps(gone) {
     };
     $$('#comps [data-get]').forEach(b => b.onclick = () => act(b, '/api/components/' + b.dataset.get, { model: b.dataset.model || '' },
       b.dataset.get === 'claude' ? () => toast('Откроется Терминал: установка Claude Code, затем вход в ваш аккаунт Claude') : null));
+    $$('#comps [data-ext]').forEach(b => b.onclick = async () => {
+      const folder = (c.items.find(x => x.id === 'browser') || {}).folder || '';
+      try { await api('/api/components/browser', {}); } catch (e) { return fail(e); }
+      const m = modal(`<h2>Расширение для Chrome</h2>
+        <p class="muted">Ставится один раз. Открылись страница расширений Chrome и папка с расширением.</p>
+        <ol class="ext-steps">
+          <li>В Chrome справа вверху включите <b>«Режим разработчика»</b>.</li>
+          <li>Нажмите <b>«Загрузить распакованное расширение»</b>.</li>
+          <li>Выберите папку <code translate="no">${esc(folder)}</code> — та, что открылась.</li>
+        </ol>
+        <p class="muted small">Готово, когда здесь у расширения появится «Установлено». В созвоне выберите в Диктофоне «Созвон» и сервис.</p>
+        <div style="text-align:right"><button class="btn primary" id="extok">Понятно</button></div>`);
+      $('#extok', m).onclick = () => m.remove();
+    });
     $$('#comps [data-use]').forEach(b => b.onclick = () => act(b, '/api/components/whisper/use', { model: b.dataset.use },
       () => toast('Whisper ' + b.dataset.use + ' — для следующих записей')));
     $$('#comps [data-del]').forEach(b => b.onclick = () => {

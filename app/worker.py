@@ -97,12 +97,14 @@ def process(d: Path, s: dict) -> None:
         return read_job(d).get("recorded") == "both" and any(p.stem == "исходник" for p in drafts.iterdir())
 
     def skype_diar():
-        """Созвон в Skype для бизнеса: кто говорит — по его журналу, а не по голосу."""
+        """Созвон: кто говорит — по журналу сервиса, а не по голосу. Skype для бизнеса пишет skype.jsonl
+        (Lync SDK), остальные — говорящие.jsonl (расширение Chrome, разведчик окон) в том же виде."""
         import skype
         job = read_job(d)
-        if job.get("recorded") not in ("both", "system") or job.get("service") not in (None, "", "skype"):
+        if job.get("recorded") not in ("both", "system"):
             return None
-        tl = skype.timeline(drafts / "skype.jsonl", job.get("rec_anchors"), job.get("duration") or 0)
+        log = drafts / ("skype.jsonl" if job.get("service") in (None, "", "skype") else "говорящие.jsonl")
+        tl = skype.timeline(log, job.get("rec_anchors"), job.get("duration") or 0)
         src = next((p for p in drafts.iterdir() if p.stem == "исходник"), None)
         if not tl or src is None:
             return None

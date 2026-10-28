@@ -1,4 +1,5 @@
 """Диктофон: запись с микрофона, звука компьютера (созвоны) или обоих сразу + живая расшифровка."""
+import json
 import os
 import queue
 import subprocess
@@ -80,6 +81,7 @@ def level(block: np.ndarray) -> float:
 class Recorder:
     def __init__(self):
         self.lock = threading.Lock()
+        self.lock_hints = threading.Lock()
         self.state = "idle"            # idle | recording | paused | saving
         self.reset()
 
@@ -99,7 +101,7 @@ class Recorder:
         self.anchors = []
         self._was_paused = True
         self.probe, self.probe_log = None, None
-        self.scout, self.scout_log = None, None
+        self.scout, self.scout_log, self.scout_hints = None, None, None
         self.threads = []
         self.queues = {}
         self.running = False
@@ -146,7 +148,7 @@ class Recorder:
             self.threads.append(w)
             if self.service == "skype" and IS_WIN:      # Lync SDK есть только для Windows
                 self._start_skype_probe()
-            elif self.service and IS_WIN:
+            elif self.service and (IS_WIN or IS_MAC):
                 self._start_scout()
             if live:
                 from live import LiveProcess
@@ -183,6 +185,8 @@ class Recorder:
             self.file.close()
             skype_log = self._stop_skype_probe()
             scout_log = self._stop_scout()
+            hints_log = self.path.with_suffix(".hints.jsonl")
+            dom_log = self.path.with_suffix(".domscout.jsonl")
             live_segs = self.live.stop() if self.live else []
             PAUSE.unlink(missing_ok=True)
             job = None
@@ -193,6 +197,8 @@ class Recorder:
                     skype_log.unlink(missing_ok=True)
                 if scout_log:
                     scout_log.unlink(missing_ok=True)
+                hints_log.unlink(missing_ok=True)
+                dom_log.unlink(missing_ok=True)
             else:
                 s = load_settings()
                 when = datetime.fromtimestamp(self.started)
@@ -207,6 +213,10 @@ class Recorder:
                     os.replace(skype_log, job / "черновики" / "skype.jsonl")
                 if scout_log and scout_log.exists():
                     os.replace(scout_log, job / "черновики" / "разведка-окон.jsonl")
+                if hints_log.exists():
+                    os.replace(hints_log, job / "черновики" / "говорящие.jsonl")
+                if dom_log.exists():
+                    os.replace(dom_log, job / "черновики" / "разведка-браузера.jsonl")
                 spawn_worker()
             self.state = "idle"
             self.last_job = job
@@ -238,18 +248,47 @@ class Recorder:
         self.probe = None
         return getattr(self, "probe_log", None)
 
-    # ---------- остальные сервисы: разведка окна созвона (пока только собираем, как кто показан) ----------
+    # ---------- остальные сервисы: кто говорит — подсказки от расширения Chrome и разведчика окон ----------
+
+    def hint(self, events: list) -> bool:
+        """Подсказки «кто говорит» во время записи — в том же виде, что журнал Skype:
+        {"kind": "participant" | "speak_start" | "speak_end", "uri", "name", "self", "t" (часы компьютера)}."""
+        if self.state not in ("recording", "paused") or self.service in ("", "skype"):
+            return False
+        path = self.path.with_suffix(".hints.jsonl")
+        now = time.time()
+        dom = [e for e in events[:200] if e.get("kind") == "dom"]      # разведка страницы — отдельным файлом
+        if dom:
+            with self.lock_hints, self.path.with_suffix(".domscout.jsonl").open("a", encoding="utf-8") as f:
+                for e in dom:
+                    f.write(json.dumps({"t": now, "site": str(e.get("uri", ""))[:80], "how": str(e.get("src", ""))[:40],
+                                        "what": str(e.get("name", ""))[:600]}, ensure_ascii=False) + "\n")
+        with self.lock_hints, path.open("a", encoding="utf-8") as f:
+            for e in events[:200]:
+                if e.get("kind") not in ("participant", "speak_start", "speak_end") or not e.get("uri"):
+                    continue
+                t = float(e.get("t") or now)
+                rec = {"t": t if abs(t - now) < 30 else now, "kind": e["kind"], "uri": str(e["uri"])[:200],
+                       "name": str(e.get("name", ""))[:120], "self": bool(e.get("self")),
+                       "src": str(e.get("src", ""))[:40]}
+                f.write(json.dumps(rec, ensure_ascii=False) + "\n")
+        return True
+
+    # ---------- разведка окна созвона: что меняется в окнах программ (для настройки распознавания) ----------
 
     def _start_scout(self):
         """Разведчик пишет, что меняется в окне Zoom, Teams, Телемоста, браузера… во время созвона.
         По этим записям потом делается распознавание «кто говорит» для каждого приложения."""
-        exe = APP / "scout" / "CallScout.exe"
+        # Windows — UI Automation (app/scout/CallScout.exe), macOS — Accessibility (mac/QamyalCallScout.swift)
+        exe = APP / "scout" / "CallScout.exe" if IS_WIN else APP / "mac" / "QamyalCallScout"
         self.scout, self.scout_log = None, None
         if not exe.exists():
             return
         self.scout_log = self.path.with_suffix(".scout.jsonl")
+        self.scout_hints = self.path.with_suffix(".scout-hints.jsonl")
         try:
-            self.scout = subprocess.Popen([str(exe), str(self.scout_log)], creationflags=0x08000000)
+            self.scout = subprocess.Popen([str(exe), str(self.scout_log), str(self.scout_hints)],
+                                          **({"creationflags": 0x08000000} if IS_WIN else {}))
         except OSError:
             self.scout = None
 
@@ -262,7 +301,25 @@ class Recorder:
             except Exception:  # noqa: BLE001
                 pass
         self.scout = None
+        self._merge_hints(getattr(self, "scout_hints", None))
         return getattr(self, "scout_log", None)
+
+    def _merge_hints(self, extra):
+        """«Кто говорит» из окон программ — в общий журнал к подсказкам расширения, по порядку времени."""
+        if not extra or not extra.exists():
+            return
+        main = self.path.with_suffix(".hints.jsonl")
+        events = []
+        for p in (main, extra):
+            if p.exists():
+                for line in p.read_text(encoding="utf-8").splitlines():
+                    try:
+                        events.append(json.loads(line))
+                    except ValueError:
+                        pass
+        events.sort(key=lambda e: e.get("t", 0))
+        main.write_text("".join(json.dumps(e, ensure_ascii=False) + "\n" for e in events), encoding="utf-8")
+        extra.unlink(missing_ok=True)
 
     # ---------- потоки ----------
 

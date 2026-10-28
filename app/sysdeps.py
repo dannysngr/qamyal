@@ -196,6 +196,20 @@ def machine_info() -> dict:
     return _machine
 
 
+def open_chrome_extensions() -> None:
+    """Страница расширений Chrome (chrome://extensions) — отсюда ставится расширение Qamyal."""
+    if IS_WIN:
+        for p in (Path(os.environ.get("ProgramFiles", r"C:\Program Files")) / "Google/Chrome/Application/chrome.exe",
+                  Path(os.environ.get("ProgramFiles(x86)", r"C:\Program Files (x86)")) / "Google/Chrome/Application/chrome.exe",
+                  Path(os.environ.get("LOCALAPPDATA", "")) / "Google/Chrome/Application/chrome.exe"):
+            if p.exists():
+                subprocess.Popen([str(p), "chrome://extensions"])
+                return
+    elif IS_MAC:
+        subprocess.Popen(["/usr/bin/osascript", "-e", 'tell application "Google Chrome" to open location "chrome://extensions"',
+                          "-e", 'tell application "Google Chrome" to activate'])
+
+
 def records_dir(root: Path) -> Path:
     """Где лежат записи: на Mac — в «Документах» (~/Documents/Qamyal), в Windows — рядом с программой."""
     if IS_MAC:

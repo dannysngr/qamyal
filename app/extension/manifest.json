@@ -1,0 +1,23 @@
+{
+  "manifest_version": 3,
+  "name": "Qamyal — кто говорит",
+  "description": "Подсказывает Qamyal, кто говорит в созвоне в браузере: Телемост, Zoom, Teams, Google Meet, МТС Линк, Битрикс24. Работает только во время записи Qamyal; данные уходят только в Qamyal на этом компьютере.",
+  "version": "1.0",
+  "icons": { "128": "icon128.png" },
+  "background": { "service_worker": "background.js" },
+  "host_permissions": ["http://127.0.0.1/*"],
+  "content_scripts": [{
+    "matches": [
+      "https://telemost.yandex.ru/*", "https://telemost.yandex.com/*", "https://telemost.360.yandex.ru/*",
+      "https://*.zoom.us/*", "https://*.zoom.com/*",
+      "https://teams.microsoft.com/*", "https://teams.live.com/*", "https://teams.cloud.microsoft/*",
+      "https://meet.google.com/*",
+      "https://*.mts-link.ru/*", "https://mts-link.ru/*", "https://*.webinar.ru/*",
+      "https://*.bitrix24.ru/*", "https://*.bitrix24.com/*", "https://*.bitrix24.by/*", "https://*.bitrix24.kz/*",
+      "https://meet.jit.si/*"
+    ],
+    "js": ["content.js"],
+    "all_frames": true,
+    "run_at": "document_idle"
+  }]
+}

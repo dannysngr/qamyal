@@ -46,7 +46,16 @@ INFO = {
                    {"name": "Claude Code",
                     "what": "программа Anthropic: краткое содержание, решения, задачи; получает только текст, не звук",
                     "size": "", "from": "claude.ai"}]},
+    "browser": {"title": "Расширение для Chrome — кто говорит в созвонах", "size": "", "need": False,
+                "about": "Для созвонов в браузере: Телемост, Zoom, Teams, Google Meet, МТС Линк, Битрикс24. "
+                         "Подсказывает Qamyal, кто сейчас говорит, — расшифровка подписывается именами из созвона.",
+                "parts": [
+                    {"name": "Qamyal — кто говорит",
+                     "what": "смотрит только на страницы созвонов и только во время записи; данные уходят только в Qamyal на этом компьютере",
+                     "size": "", "from": "папка программы"}]},
 }
+EXTENSION = ROOT / "app" / "extension"
+EXT_SEEN = JOBS / ".extension.json"            # когда расширение последний раз заходило к Qamyal
 
 # Варианты Whisper (репозитории и ревизии закреплены). speed — доля от длины записи на этап Whisper
 # для оценки «осталось ≈»: turbo измерен на ноутбуке Дэни, остальные — прикидка по устройству моделей.
@@ -146,7 +155,16 @@ def ready(cid: str) -> bool:
         return speech_ready()
     if cid == "whisper":
         return whisper_ready()
+    if cid == "browser":
+        return time.time() - (read_json(EXT_SEEN, {}) or {}).get("seen", 0) < 30 * 86400
     return bool(find_claude(load_settings()))
+
+
+def extension_seen() -> None:
+    """Расширение Chrome заглянуло к Qamyal — значит, оно установлено (пишем не чаще раза в минуту)."""
+    if time.time() - (read_json(EXT_SEEN, {}) or {}).get("seen", 0) > 60:
+        JOBS.mkdir(exist_ok=True)
+        write_json(EXT_SEEN, {"seen": time.time()})
 
 
 def current() -> dict:
@@ -171,6 +189,7 @@ def status() -> dict:
                              "deletable": (whisper_dir(k) / "model.bin").exists() and k != active}
                             for k, m in WHISPER_MODELS.items()]
     items[1]["advice"] = {"key": advice, "why": why, "machine": machine}
+    items[3]["folder"] = str(EXTENSION)
     return {"items": items, "job": st}
 
 
@@ -197,6 +216,11 @@ def delete_whisper(key: str) -> None:
 # ---------- запуск из окна ----------
 
 def start(cid: str, model: str = "") -> None:
+    if cid == "browser":                          # ставит сам пользователь в Chrome: открываем страницу и папку
+        from sysdeps import open_chrome_extensions, open_path
+        open_path(EXTENSION)
+        open_chrome_extensions()
+        return
     if current().get("state") == "running":
         raise RuntimeError("Уже идёт загрузка — дождитесь её конца")
     if cid == "claude":

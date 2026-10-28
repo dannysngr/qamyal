@@ -237,7 +237,7 @@ def components_get():
     return components.status()
 
 
-@app.post("/api/components/<cid:re:speech|whisper|claude>")
+@app.post("/api/components/<cid:re:speech|whisper|claude|browser>")
 def components_start(cid):
     import components
     try:
@@ -977,6 +977,22 @@ def rec_action(action):
     except Exception as e:  # noqa: BLE001 — ошибку устройства показываем в окне
         bottle.abort(500, str(e))
     return rec.status()
+
+
+@app.post("/api/rec/hint")
+def rec_hint():
+    """«Кто говорит» от расширения Chrome (Телемост, Zoom, Teams… в браузере) и разведчика окон программ."""
+    events = body().get("events")
+    taken = rec.hint(events) if isinstance(events, list) else False
+    return {"recording": rec.state in ("recording", "paused"), "taken": taken}
+
+
+@app.get("/api/rec/hint")
+def rec_hint_state():
+    """Расширению: идёт ли сейчас запись созвона (тогда стоит присылать подсказки)."""
+    import components
+    components.extension_seen()
+    return {"recording": rec.state in ("recording", "paused") and rec.service not in ("", "skype")}
 
 
 @app.error(400)

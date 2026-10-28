@@ -55,6 +55,8 @@ step "5/7 Помощник записи звука компьютера"
 mkdir -p "$ROOT/app/mac"
 swiftc -O -target "$TARGET" "$ROOT/mac/QamyalAudioTap.swift" -o "$ROOT/app/mac/QamyalAudioTap"
 codesign --force --sign - "$ROOT/app/mac/QamyalAudioTap"
+swiftc -O -target "$TARGET" "$ROOT/mac/QamyalCallScout.swift" -o "$ROOT/app/mac/QamyalCallScout"
+codesign --force --sign - "$ROOT/app/mac/QamyalCallScout"
 
 step "6/7 Приложение Qamyal.app"
 BUILD="$(mktemp -d)"

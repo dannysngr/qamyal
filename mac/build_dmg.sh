@@ -35,6 +35,8 @@ cp "$KIT/mac/setup.sh" "$R/setup.sh"
 step "2/4 Сборка Qamyal.app и помощника звука"
 swiftc -O -target "$TARGET" "$KIT/mac/QamyalAudioTap.swift" -o "$P/bin/QamyalAudioTap"
 codesign --force --sign - "$P/bin/QamyalAudioTap"
+swiftc -O -target "$TARGET" "$KIT/mac/QamyalCallScout.swift" -o "$P/bin/QamyalCallScout"   # кто говорит в окнах Zoom, Teams…
+codesign --force --sign - "$P/bin/QamyalCallScout"
 swiftc -O -target "$TARGET" "$KIT/mac/QamyalApp.swift" -o "$A/Contents/MacOS/Qamyal" -framework Cocoa -framework WebKit
 ICONSET="$TMP/qamyal.iconset"
 mkdir "$ICONSET"

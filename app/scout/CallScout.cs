@@ -3,7 +3,9 @@
 // созвона и пишет в файл (JSON-строки), что в них изменилось: появились, пропали или переименовались
 // элементы. По этим записям видно, как приложение показывает «кто сейчас говорит», — под каждое
 // потом делается свой разбор, как для Skype для бизнеса. Только читает, ничего не нажимает.
-// Запуск: CallScout.exe <файл.jsonl>   (работает, пока его не остановят)
+// Заодно сам ищет в окнах подписи «кто говорит» («Анна, говорит», «Speaking: Anna», элемент с именем
+// и состоянием «говорит») и пишет их во второй файл в том же виде, что журнал Skype: speak_start / speak_end.
+// Запуск: CallScout.exe <разведка.jsonl> [<говорящие.jsonl>]   (работает, пока его не остановят)
 // Сборка: csc /target:winexe /r:UIAutomationClient.dll /r:UIAutomationTypes.dll CallScout.cs
 using System;
 using System.Collections.Generic;
@@ -28,7 +30,19 @@ class CallScout
     const int MaxNodes = 6000;
     const long MaxBytes = 60L * 1024 * 1024;
 
-    static StreamWriter log;
+    // «Имя, говорит» / «Говорит: Имя» и то же по-английски
+    static readonly Regex NameThenSpeak = new Regex(
+        @"^(?<n>[^\n|]{2,60}?)[\s,:;—–-]+(сейчас\s+)?(говорит|выступает|is speaking|is talking|speaking|talking)(\s+сейчас|\s+now)?[.!]?$",
+        RegexOptions.IgnoreCase);
+    static readonly Regex SpeakThenName = new Regex(
+        @"^(сейчас говорит|говорит|выступает|активный (докладчик|спикер)|speaking|talking|now speaking|current speaker|active speaker)[\s:—–-]+(?<n>[^\n|]{2,60})$",
+        RegexOptions.IgnoreCase);
+    static readonly Regex SpeakWord = new Regex(@"^(говорит|выступает|speaking|talking|is speaking|is talking)$", RegexOptions.IgnoreCase);
+    static readonly Regex SelfMark = new Regex(@"\s*\((вы|you|я|me)\)\s*$", RegexOptions.IgnoreCase);
+
+    static StreamWriter log, hints;
+    static readonly Dictionary<string, HashSet<string>> talking = new Dictionary<string, HashSet<string>>();
+    static readonly HashSet<string> introduced = new HashSet<string>();
     static long written;
     static readonly Dictionary<IntPtr, HashSet<string>> last = new Dictionary<IntPtr, HashSet<string>>();
 
@@ -71,6 +85,48 @@ class CallScout
                    c.ClassName + "|" + c.Name + "|" + c.ItemStatus + "|" + c.HelpText;
         }
         catch { return ""; }
+    }
+
+    // кто говорит в этом окне по подписям элементов (подпись — «тип|id|класс|имя|состояние|подсказка»)
+    static HashSet<string> Speakers(HashSet<string> snap)
+    {
+        var who = new HashSet<string>();
+        foreach (var s in snap)
+        {
+            var f = s.Split('|');
+            if (f.Length < 6) continue;
+            string name = f[3].Trim(), status = f[4].Trim(), help = f[5].Trim();
+            Match m;
+            if ((m = NameThenSpeak.Match(name)).Success || (m = SpeakThenName.Match(name)).Success)
+                who.Add(m.Groups["n"].Value.Trim());
+            else if (name.Length >= 2 && name.Length <= 60 && (SpeakWord.IsMatch(status) || SpeakWord.IsMatch(help)))
+                who.Add(name);
+        }
+        return who;
+    }
+
+    static void Hint(string kind, string proc, string name)
+    {
+        if (hints == null) return;
+        bool self = SelfMark.IsMatch(name);
+        string clean = SelfMark.Replace(name, "").Trim();
+        string uri = proc + ":" + clean.ToLowerInvariant();
+        string t = Now().ToString("F3", System.Globalization.CultureInfo.InvariantCulture);
+        string common = ",\"uri\":\"" + Esc(uri) + "\",\"name\":\"" + Esc(clean) + "\",\"self\":" + (self ? "true" : "false") +
+                        ",\"src\":\"" + Esc(proc) + "\"}";
+        if (introduced.Add(uri)) hints.WriteLine("{\"t\":" + t + ",\"kind\":\"participant\"" + common);
+        hints.WriteLine("{\"t\":" + t + ",\"kind\":\"" + kind + "\"" + common);
+        hints.Flush();
+    }
+
+    static void TrackSpeakers(string proc, HashSet<string> snap)
+    {
+        var now = Speakers(snap);
+        HashSet<string> before;
+        if (!talking.TryGetValue(proc, out before)) before = new HashSet<string>();
+        foreach (var n in now.Where(x => !before.Contains(x))) Hint("speak_start", proc, n);
+        foreach (var n in before.Where(x => !now.Contains(x))) Hint("speak_end", proc, n);
+        talking[proc] = now;
     }
 
     static HashSet<string> Snapshot(AutomationElement win)
@@ -123,6 +179,7 @@ class CallScout
     {
         string path = args.Length > 0 ? args[0] : "call-scout.jsonl";
         log = new StreamWriter(path, true, new UTF8Encoding(false));
+        if (args.Length > 1) hints = new StreamWriter(args[1], true, new UTF8Encoding(false));
         Write("started", "");
         int tick = 0;
         while (true)
@@ -148,6 +205,7 @@ class CallScout
                             Write("diff", who + ",\"add\":" + Arr(add) + ",\"del\":" + Arr(del));
                     }
                     last[h] = now;
+                    TrackSpeakers(w.Item2, now);
                 }
             }
             catch (Exception ex) { Write("error", "\"msg\":\"" + Esc(ex.Message) + "\""); }
