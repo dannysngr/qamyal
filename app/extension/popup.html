@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<style>
+  :root { --text: #141a26; --muted: #677085; --ok: #16a374; --rec: #e5484d; --line: #e3e6ec; }
+  @media (prefers-color-scheme: dark) { :root { --text: #e6e9ef; --muted: #8e98ab; --ok: #3ccf95; --rec: #ff5c62; --line: #242d3c; }
+    body { background: #161b24; } }
+  body { margin: 0; width: 270px; font: 13px/1.45 "Segoe UI", -apple-system, sans-serif; color: var(--text); }
+  .head { display: flex; align-items: center; gap: 9px; padding: 12px 14px 10px; border-bottom: 1px solid var(--line); font-weight: 600; }
+  .head img { width: 22px; height: 22px; }
+  .rows { padding: 10px 14px 12px; display: grid; gap: 8px; }
+  .row { display: flex; gap: 9px; }
+  .dot { flex: none; width: 9px; height: 9px; border-radius: 50%; margin-top: 5px; background: var(--muted); }
+  .dot.ok { background: var(--ok); }
+  .dot.rec { background: var(--rec); }
+  .muted { color: var(--muted); }
+</style>
+</head>
+<body>
+<div class="head"><img src="icon128.png" alt="">Qamyal — кто говорит</div>
+<div class="rows">
+  <div class="row"><span class="dot" id="d1"></span><span id="t1">Проверяю Qamyal…</span></div>
+  <div class="row"><span class="dot" id="d2"></span><span id="t2"></span></div>
+</div>
+<script src="popup.js"></script>
+</body>
+</html>

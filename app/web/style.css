@@ -60,27 +60,24 @@ svg.i { width: 18px; height: 18px; flex: none; stroke: currentColor; fill: none;
 /* ---------- мини-окно: запись, таймер, ход обработки ---------- */
 html.mini #app { grid-template-columns: 1fr; }
 html.mini #side { display: none; }
-.mini-box { display: grid; gap: 8px; padding: 8px 12px 10px; }
-.mini-rec { display: flex; align-items: center; gap: 10px; }
-.mini-rec .bigbtn { width: 46px; height: 46px; margin: 4px; box-shadow: 0 0 0 4px var(--rec-soft); }
-.mini-rec .bigbtn svg.i { width: 22px; height: 22px; }
-.mini-rec .bigbtn.stop svg.i { width: 17px; height: 17px; }
+.mini-box { display: grid; grid-template-columns: minmax(0, 1fr); gap: 4px; padding: 6px 10px 0; }
+.mini-rec { display: flex; align-items: center; gap: 8px; }
+.mini-rec .bigbtn { width: 38px; height: 38px; margin: 3px; box-shadow: 0 0 0 3px var(--rec-soft); }
+.mini-rec .bigbtn svg.i { width: 19px; height: 19px; }
+.mini-rec .bigbtn.stop svg.i { width: 14px; height: 14px; }
 .mini-mid { flex: 1; min-width: 0; }
-.mini-rec .timer { font-size: 24px; }
-.mini-rec .rec-state { font-size: 12px; min-height: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.mini-rec .btn { padding: 6px 8px; }
-.mini-rec .btn[hidden] { display: none; }
-.mini-work { font-size: 12px; display: grid; gap: 4px; height: 26px; align-content: center; }
-.mini-work > div { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.mini-work .bar { height: 4px; }
-.mini-work svg.i { width: 14px; height: 14px; vertical-align: -3px; margin-right: 5px; color: var(--ok); }
-.mini-foot { display: flex; align-items: center; gap: 8px; font-size: 12px; border-top: 1px solid var(--line); padding-top: 8px; }
-.mini-foot .switch { gap: 7px; }
-.mini-foot .switch i { width: 30px; height: 18px; }
-.mini-foot .switch i::after { width: 12px; height: 12px; }
-.mini-foot .switch input:checked + i::after { left: 15px; }
-.mini-foot .btn { padding: 4px 6px; font-size: 12px; }
-.mini-foot .grow { flex: 1; }
+.mini-rec .timer { font-size: 20px; }
+.mini-rec .rec-state { font-size: 11.5px; min-height: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mini-rec .btn { padding: 5px 6px; }
+.mini-rec .btn svg.i { width: 15px; height: 15px; }
+.mini-rec .btn[hidden], .mini-box .bar[hidden] { display: none; }
+.mini-foot { display: flex; align-items: center; gap: 2px; font-size: 11.5px; height: 26px; }
+.mini-work { flex: 1; min-width: 0; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mini-work svg.i { width: 13px; height: 13px; vertical-align: -2px; margin-right: 4px; color: var(--ok); }
+.mini-ic { padding: 4px 5px; border: 0; color: var(--muted); }
+.mini-ic svg.i { width: 15px; height: 15px; }
+.mini-ic.on { color: var(--accent); background: var(--accent-soft, rgba(47, 111, 237, .12)); }
+.mini-box > .bar { height: 3px; margin: 0 -10px; border-radius: 0; }
 
 /* ---------- компактный вид: в панели только значки, подсказки скрыты ---------- */
 .compact #app { grid-template-columns: 64px 1fr; }

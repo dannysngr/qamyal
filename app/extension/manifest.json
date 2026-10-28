@@ -2,9 +2,11 @@
   "manifest_version": 3,
   "name": "Qamyal — кто говорит",
   "description": "Подсказывает Qamyal, кто говорит в созвоне в браузере: Телемост, Zoom, Teams, Google Meet, МТС Линк, Битрикс24. Работает только во время записи Qamyal; данные уходят только в Qamyal на этом компьютере.",
-  "version": "1.0",
+  "version": "1.1",
   "icons": { "128": "icon128.png" },
+  "action": { "default_icon": { "128": "icon128.png" }, "default_title": "Qamyal — кто говорит", "default_popup": "popup.html" },
   "background": { "service_worker": "background.js" },
+  "permissions": ["activeTab"],
   "host_permissions": ["http://127.0.0.1/*"],
   "content_scripts": [{
     "matches": [

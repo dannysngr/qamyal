@@ -40,6 +40,7 @@ const ICONS = {
   shrink: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16M16 10l-2 2 2 2"/>',
   grow: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16M14 10l2 2-2 2"/>',
   mini: '<rect x="3" y="4" width="18" height="16" rx="2"/><rect x="12" y="12" width="6" height="5" rx="1"/>',
+  pin: '<path d="M12 17v5M9 3h6M10 3v6l-4 4v4h12v-4l-4-4V3"/>',
 };
 const icon = (n, cls = '') => `<svg class="i ${cls}" viewBox="0 0 24 24">${ICONS[n] || ''}</svg>`;
 $$('[data-icon]').forEach(e => { e.outerHTML = icon(e.dataset.icon); });
@@ -509,11 +510,11 @@ function pageMini() {
       <button class="btn" id="mmk" title="Отметить момент (M)" hidden>${icon('star')}</button>
       <button class="btn" id="mpz" hidden></button>
     </div>
-    <div class="mini-work" id="mw"></div>
     <div class="mini-foot">
-      <label class="switch"><input type="checkbox" id="mtop"><i></i><span>Поверх всех окон</span></label>
-      <span class="grow"></span>
-      <button class="btn sm ghost" id="mmain" title="Основное окно Qamyal">${icon('grow')}Открыть Qamyal</button></div></div>`;
+      <div class="mini-work" id="mw"></div>
+      <button class="btn ghost mini-ic" id="mtop" title="Поверх всех окон">${icon('pin')}</button>
+      <button class="btn ghost mini-ic" id="mmain" title="Открыть Qamyal">${icon('grow')}</button></div>
+    <div class="bar" id="mbar"><i></i></div></div>`;
   const SRC = { mic: 'Разговор', both: 'Созвон', system: 'Звук ПК' };
   let state = '', busy = false, src = '', lastWork = '';
   const loadSrc = () => api('/api/settings').then(r => {
@@ -547,18 +548,22 @@ function pageMini() {
 
   function work() {
     if (!ST) return;
-    let h;
-    // одна строка и тонкая полоска: подробности — в основном окне
+    let h, pct = -1, busyBar = false;     // pct < 0 — полоски нет
+    // одна строка и тонкая полоска внизу окна: подробности — в основном окне и в подсказке
     if (ST.download) {
-      const dl = ST.download, pct = dl.total ? Math.min(100, Math.round(dl.done * 100 / dl.total)) : 0;
-      h = `<div title="${esc(dl.step || '')}"><b>Скачиваю</b><span class="muted">${dl.total ? ` · ${pct}%` : ''}</span></div>
-        <div class="bar${dl.total ? '' : ' busy'}"><i style="width:${dl.total ? pct : 100}%"></i></div>`;
+      const dl = ST.download;
+      pct = dl.total ? Math.min(100, Math.round(dl.done * 100 / dl.total)) : 100;
+      busyBar = !dl.total;
+      h = `<span title="${esc(dl.step || '')}"><b>Скачиваю</b>${dl.total ? ` · ${pct}%` : ''}</span>`;
     } else if (ST.work.length) {
       const w = ST.work[0], cur = w.status === 'working', more = ST.work.length - 1;
-      h = `<div title="${more ? esc(`и ещё ${more} в очереди`) : ''}"><span class="muted">${cur ? `${esc(w.stage_label)} · ${w.progress}%` : 'ждёт очереди'}${more ? ` · +${more}` : ''}</span> <b>${esc(w.name)}</b></div>
-        <div class="bar"><i style="width:${cur ? w.progress : 0}%"></i></div>`;
-    } else h = `<div class="muted">${icon('check')}<span>Все записи обработаны</span></div>`;
+      pct = cur ? w.progress : 0;
+      h = `<span title="${esc(w.name)}${more ? ' · ' + esc(`и ещё ${more} в очереди`) : ''}">${cur ? `${esc(w.stage_label)} · ${w.progress}%` : 'ждёт очереди'}${more ? ` · +${more}` : ''}</span>`;
+    } else h = `${icon('check')}<span>Все записи обработаны</span>`;
     if (h !== lastWork) { lastWork = h; $('#mw').innerHTML = h; }
+    $('#mbar').hidden = pct < 0;
+    $('#mbar').classList.toggle('busy', busyBar);
+    $('#mbar > i').style.width = Math.max(pct, 0) + '%';
   }
 
   $('#mgo').onclick = async () => {
@@ -575,8 +580,12 @@ function pageMini() {
   $('#mmk').onclick = mark;
   $('#mpz').onclick = () => api('/api/rec/' + (state === 'paused' ? 'resume' : 'pause'), {}).then(tick).catch(fail);
   $('#mmain').onclick = () => miniAction('main').catch(fail);
-  api('/api/mini').then(r => { $('#mtop').checked = r.top; }).catch(() => {});
-  $('#mtop').onchange = e => miniAction('top', { top: e.target.checked }).catch(fail);
+  const showTop = on => {
+    $('#mtop').classList.toggle('on', on);
+    $('#mtop').title = on ? 'Поверх всех окон: включено' : 'Поверх всех окон: выключено';
+  };
+  api('/api/mini').then(r => showTop(r.top)).catch(() => {});
+  $('#mtop').onclick = () => miniAction('top', { top: !$('#mtop').classList.contains('on') }).then(r => showTop(r.top)).catch(fail);
   const onKey = e => {
     if ((e.key === 'm' || e.key === 'M' || e.key === 'ь' || e.key === 'Ь') && (state === 'recording' || state === 'paused')) {
       e.preventDefault(); mark();
@@ -586,7 +595,7 @@ function pageMini() {
   onLeave(() => document.removeEventListener('keydown', onKey));
   // Размер мини-окна постоянный: столько, сколько нужно содержимому. На Mac его задаёт оболочка;
   // в Windows рамку окна знает только страница — она и просит программу поставить нужный размер.
-  const W = 320, H = 160;
+  const W = 260, H = 88;
   // /mini, открытый обычной вкладкой браузера (с адресной строкой), окном мини-окна не командует
   const appWin = () => !MAC_SHELL && outerHeight - innerHeight < 80;
   const fit = first => {                   // первый раз — всегда: программа заодно убирает растягивание

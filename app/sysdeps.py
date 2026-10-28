@@ -220,7 +220,7 @@ def fix_mini_size(w: int, hh: int) -> None:
     import ctypes
     from ctypes import wintypes
     h = find_window(MINI_TITLE, prefix=True)
-    if not h or not (200 <= w <= 900 and 150 <= hh <= 700):
+    if not h or not (200 <= w <= 900 and 100 <= hh <= 700):
         return
     user32 = ctypes.windll.user32
     if user32.IsZoomed(wintypes.HWND(h)):
@@ -239,7 +239,7 @@ def open_mini_window(url: str, profile: Path, top: bool, rect=None) -> None:
         focus_window(h)
         _set_topmost(h, top)
         return
-    open_app_window(url, profile, ["--window-size=336,197"])
+    open_app_window(url, profile, ["--window-size=274,126"])
 
     def place():
         import ctypes
@@ -261,7 +261,7 @@ def open_mini_window(url: str, profile: Path, top: bool, rect=None) -> None:
         else:                                    # первый раз или того монитора больше нет
             wa = wintypes.RECT()
             user32.SystemParametersInfoW(0x30, 0, ctypes.byref(wa), 0)  # SPI_GETWORKAREA
-            w, hh = 336, 197                      # 320×160 внутри + рамка Chrome
+            w, hh = 274, 126                      # 260×88 внутри + рамка Chrome
             x, y = wa.right - w - 16, wa.bottom - hh - 16
         user32.SetWindowPos(wintypes.HWND(h), None, x, y, w, hh, 0x0014)       # SWP_NOZORDER | SWP_NOACTIVATE
         _set_topmost(h, top)
