@@ -180,7 +180,7 @@ def current() -> dict:
 def status() -> dict:
     """Для окна: что установлено и что сейчас качается."""
     st = current()
-    items = [{"id": k, **v, "ready": ready(k), "after": "speech" if k == "whisper" else ""} for k, v in INFO.items()]
+    items = [{"id": k, **v, "ready": ready(k)} for k, v in INFO.items()]
     active = whisper_model()
     machine = machine_info()
     advice, why = recommend_whisper(machine)
@@ -235,9 +235,7 @@ def start(cid: str, model: str = "") -> None:
             open_console(["/bin/bash", "-c", "curl -fsSL https://claude.ai/install.sh | bash && ~/.local/bin/claude"],
                          "Установка Claude Code")
         return
-    if cid == "whisper":
-        if not speech_ready():
-            raise RuntimeError("Сначала скачайте распознавание речи")
+    if cid == "whisper":                          # файлы модели качаются сами по себе — распознавание не нужно
         if model not in WHISPER_MODELS:
             raise RuntimeError("Нет такого варианта Whisper")
     JOBS.mkdir(exist_ok=True)

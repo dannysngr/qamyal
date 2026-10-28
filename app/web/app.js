@@ -1410,7 +1410,7 @@ function drawComps(gone) {
       else if (v.active && v.downloaded) right = `<span class="ok">${icon('check')}Используется</span>`;
       else if (v.downloaded) right = `<button class="btn sm" data-use="${v.key}">Использовать</button>` +
         (v.deletable ? ` <button class="btn sm ghost danger" data-del="${v.key}" title="Удалить с компьютера">${icon('trash')}</button>` : '');
-      else right = getBtn(`data-get="whisper" data-model="${v.key}"`, busy || !ready.speech, failed('whisper', v.key), v.size);
+      else right = getBtn(`data-get="whisper" data-model="${v.key}"`, busy, failed('whisper', v.key), v.size);
       return `<tr class="${v.best ? 'best' : ''}"><td class="nowrap"><b translate="no">${esc(v.key)}</b>${v.best ? '<div><span class="need">советуем</span></div>' : ''}</td>
         <td><i class="what">${esc(v.what)}</i>${errLine('whisper', v.key)}</td><td class="comp-r">${right}</td></tr>`;
     };
@@ -1424,7 +1424,7 @@ function drawComps(gone) {
     const row = x => {
       const mine = job.id === x.id;
       let right = '';
-      if (x.variants) right = !ready.speech ? '<div class="help">сначала — распознавание речи</div>' : '';
+      if (x.variants) right = '';
       else if (x.ready) right = `<span class="ok">${icon('check')}Установлено</span>`;
       else if (mine && busy) right = progress();
       else if (x.id === 'claude') right = `<button class="btn sm" data-get="claude" ${busy ? 'disabled' : ''}>${icon('spark')}Установить</button>`;
