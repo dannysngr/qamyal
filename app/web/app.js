@@ -1619,7 +1619,7 @@ function drawComps(gone) {
       if (running('whisper', v.key)) right = progress(jobOf('whisper', v.key));
       else if (v.active && v.downloaded) right = `<span class="ok">${icon('check')}Установлено</span>`;
       else if (v.downloaded) right = `<button class="btn sm" data-use="${v.key}">Использовать</button>` +
-        (v.deletable ? ` <button class="btn sm ghost danger" data-del="${v.key}" title="Удалить с компьютера">${icon('trash')}</button>` : '');
+        (v.deletable ? ` <button class="btn sm ghost danger" data-del="${v.key}" title="Удалить с компьютера">${icon('trash')}Удалить</button>` : '');
       else right = getBtn(`data-get="whisper" data-model="${v.key}"`, failed('whisper', v.key), v.size);
       return `<tr class="${v.best ? 'best' : ''}"><td class="nowrap"><b translate="no">${esc(v.key)}</b>${v.best ? '<div><span class="need">советуем</span></div>' : ''}</td>
         <td><i class="what">${esc(v.what)}</i>${errLine('whisper', v.key)}</td><td class="comp-r">${right}</td></tr>`;

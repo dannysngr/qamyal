@@ -199,7 +199,7 @@ def status() -> dict:
     advice, why = recommend_whisper(machine)
     items[1]["variants"] = [{"key": k, "size": m["size"], "what": m["what"], "best": k == advice,
                              "downloaded": whisper_downloaded(k), "active": k == active,
-                             "deletable": (whisper_dir(k) / "model.bin").exists() and k != active}
+                             "deletable": whisper_downloaded(k) and k != active}
                             for k, m in WHISPER_MODELS.items()]
     items[1]["advice"] = {"key": advice, "why": why, "machine": machine}
     items[3]["folder"] = str(EXTENSION)
@@ -215,7 +215,7 @@ def use_whisper(key: str) -> None:
 
 
 def delete_whisper(key: str) -> None:
-    """Удалить скачанный вариант (только свою папку модели; выбранный — нельзя)."""
+    """Удалить скачанный вариант: его папку и копию в кэше Hugging Face (выбранный — нельзя)."""
     import shutil
     if key not in WHISPER_MODELS or key == whisper_model():
         raise RuntimeError("Выбранный вариант удалить нельзя — сначала выберите другой")
@@ -223,6 +223,25 @@ def delete_whisper(key: str) -> None:
         raise RuntimeError("Этот вариант сейчас скачивается")
     shutil.rmtree(whisper_dir(key), ignore_errors=True)
     shutil.rmtree(whisper_dir(key).with_name(key + ".part"), ignore_errors=True)
+    base = MODELS / "whisper"
+    for d in base.glob(f"models--*faster-whisper-{key}"):
+        shutil.rmtree(d, ignore_errors=True)
+        shutil.rmtree(base / ".locks" / d.name, ignore_errors=True)
+    _drop_shared_blobs(base)
+
+
+def _drop_shared_blobs(base: Path) -> None:
+    """Новый кэш Hugging Face держит большие файлы в общей папке blobs/ и ссылается на них из папок моделей.
+    Удаляем те общие файлы, на которые больше не ссылается ни одна модель."""
+    shared = base / "blobs"
+    if not shared.is_dir():
+        return
+    used = {os.path.normcase(os.path.realpath(p)) for p in base.glob("models--*/**/*") if p.is_symlink()}
+    for f in shared.glob("*/*"):
+        if f.suffix == ".refs" or not f.is_file() or os.path.normcase(os.path.realpath(f)) in used:
+            continue
+        f.unlink(missing_ok=True)
+        f.with_name(f.name + ".refs").unlink(missing_ok=True)
 
 
 # ---------- запуск из окна ----------
