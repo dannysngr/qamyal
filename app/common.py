@@ -313,6 +313,11 @@ def projects_of(x: dict) -> list:
     return [one.strip()] if isinstance(one, str) and one.strip() else []
 
 
+def task_key(jid: str, what: str) -> str:
+    """Постоянный ключ задачи — по нему хранится отметка «сделано» (.tasks.json)."""
+    return hashlib.md5(f"{jid}|{what}".encode("utf-8")).hexdigest()[:12]
+
+
 def settle_tasks(res: dict) -> None:
     """Каждая задача — в один из проектов записи (если ИИ не указал или указал чужой — в главный)."""
     ps = projects_of(res)

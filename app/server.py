@@ -1,5 +1,4 @@
 """Локальный сервер окна программы: страницы интерфейса + API (только 127.0.0.1)."""
-import hashlib
 import os
 import re
 import shutil
@@ -13,9 +12,9 @@ from bottle import request, response, static_file
 import editor
 import render
 from common import (APP, GLOSSARY, INCOMING, JOBS, SERVICES, STAGE_LABEL, TASKS_STATE, codex_status, create_job, eta,
-                    find_codex, find_job, projects_of, set_projects,
+                    find_codex, find_job, parse_time, projects_of, set_projects,
                     fmt_time, job_id, list_jobs, load_settings, pending_jobs, read_glossary, read_job,
-                    read_json, rename_job_dir, save_settings, spawn_worker, update_job, worker_pid,
+                    read_json, rename_job_dir, save_settings, spawn_worker, task_key, update_job, worker_pid,
                     write_job, write_json, add_project, load_projects, save_projects)
 from dictate import Dictation
 from recorder import Recorder, devices
@@ -128,10 +127,6 @@ def relearn_job(d: Path) -> None:
     mapping = voices.full_mapping(dia, res["turns"], read_json(d / "черновики" / "голоса-узнаны.json", {}))
     write_json(d / "черновики" / "кто-есть-кто.json", {str(k): v for k, v in mapping.items()})
     voices.learn(job_id(d), res.get("title", d.name), clusters, mapping, dia)
-
-
-def task_key(jid: str, what: str) -> str:
-    return hashlib.md5(f"{jid}|{what}".encode("utf-8")).hexdigest()[:12]
 
 
 def body() -> dict:
@@ -812,10 +807,18 @@ def tasks():
             jid = job_id(d)
             key = task_key(jid, t.get("what", ""))
             out.append({"key": key, "job": jid, "title": res.get("title", ""), "date": j.get("date", ""),
-                        "ts": j.get("ts", 0), "who": t.get("who", ""), "what": t.get("what", ""),
-                        "when": t.get("when", ""), "done": bool(done_map.get(key)),
+                        "ts": j.get("ts") or j.get("added") or 0, "who": t.get("who", ""), "what": t.get("what", ""),
+                        "when": t.get("when", ""), "done": bool(done_map.get(key)), "t": _sec(t.get("t")),
                         "project": t.get("project") or next(iter(projects_of(j)), "")})
     return {"tasks": out, "user": load_settings()["user_name"]}
+
+
+def _sec(t):
+    """«05:23» → секунды; у старых задач места в разговоре нет."""
+    try:
+        return parse_time(t) if t not in (None, "") else None
+    except ValueError:
+        return None
 
 
 @app.post("/api/tasks/<key>")
@@ -823,6 +826,51 @@ def task_done(key):
     done_map = read_json(TASKS_STATE, {})
     done_map[key] = bool(body().get("done"))
     write_json(TASKS_STATE, done_map)
+    return {"ok": True}
+
+
+# ---------- обзор: речь, хронология проекта, итог недели ----------
+
+def _insight(fn, *args):
+    try:
+        return fn(*args)
+    except editor.EditorError as e:
+        bottle.abort(502, str(e))
+
+
+@app.get("/api/insights/speech")
+def insights_speech():
+    import insights
+    return insights.speech(load_settings()["user_name"])
+
+
+@app.get("/api/insights/lists")
+def insights_lists():
+    import insights
+    return {"projects": insights.project_names(), "weeks": insights.weeks()}
+
+
+@app.post("/api/insights/timeline")
+def insights_timeline():
+    import insights
+    b = body()
+    return _insight(insights.timeline, str(b.get("project", "")), load_settings(), bool(b.get("fresh")),
+                    bool(b.get("peek")))
+
+
+@app.post("/api/insights/week")
+def insights_week():
+    import insights
+    b = body()
+    return _insight(insights.week_digest, str(b.get("start", "")), load_settings(), bool(b.get("fresh")),
+                    bool(b.get("peek")))
+
+
+@app.post("/api/insights/week-word")
+def insights_week_word():
+    import insights
+    b = body()
+    open_path(insights.week_word(str(b.get("start", "")), b.get("text", "")))
     return {"ok": True}
 
 
@@ -961,6 +1009,24 @@ def glossary_set():
     if isinstance(text, str):
         GLOSSARY.write_text(text.replace("\r\n", "\n"), encoding="utf-8")
     return {"ok": True}
+
+
+@app.get("/api/glossary/suggest")
+def glossary_suggest():
+    import insights
+    return insights.suggestions()
+
+
+@app.post("/api/glossary/suggest")
+def glossary_find():
+    import insights
+    return _insight(insights.find_terms, load_settings())
+
+
+@app.post("/api/glossary/suggest/dismiss")
+def glossary_dismiss():
+    import insights
+    return insights.dismiss_term(str(body().get("term", "")))
 
 
 @app.get("/api/settings")

@@ -41,6 +41,7 @@ const ICONS = {
   grow: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16M14 10l2 2-2 2"/>',
   mini: '<rect x="3" y="4" width="18" height="16" rx="2"/><rect x="12" y="12" width="6" height="5" rx="1"/>',
   pin: '<path d="M12 17v5M9 3h6M10 3v6l-4 4v4h12v-4l-4-4V3"/>',
+  chart: '<path d="M3 3v16a2 2 0 0 0 2 2h16M8 17v-4M13 17V7M18 17v-7"/>',
 };
 const icon = (n, cls = '') => `<svg class="i ${cls}" viewBox="0 0 24 24">${ICONS[n] || ''}</svg>`;
 $$('[data-icon]').forEach(e => { e.outerHTML = icon(e.dataset.icon); });
@@ -171,7 +172,7 @@ function route() {
   $$('#side a.nav').forEach(a => a.classList.toggle('active', a.dataset.nav === nav));
   view.scrollTop = 0;
   if (MINI) return pageMini();
-  const pages = { rec: pageRec, lib: pageLib, job: () => pageJob(parts[1], q), tasks: pageTasks,
+  const pages = { rec: pageRec, lib: pageLib, job: () => pageJob(parts[1], q), tasks: pageTasks, insights: pageInsights,
     voices: pageVoices, glossary: pageGlossary, settings: pageSettings, about: pageAbout };
   (pages[parts[0]] || pageLib)(q);
 }
@@ -1263,31 +1264,54 @@ async function pageTasks() {
   const me = r.user.toLowerCase();
   const projects = [...new Set(r.tasks.map(t => t.project).filter(Boolean))].sort();
   if (proj && !projects.includes(proj)) proj = '';
+  const isMine = t => (t.who || '').toLowerCase().includes(me);
+  const owedMe = t => t.who && !isMine(t);           // «мне должны» — что обещали другие
+  const ageDays = t => Math.max(0, Math.floor((Date.now() / 1000 - t.ts) / 86400));
   const render = () => {
-    const items = r.tasks.filter(t => (!proj || t.project === proj) && (who === 'all' || (t.who || '').toLowerCase().includes(me)) &&
+    const owed = who === 'owed';
+    const items = r.tasks.filter(t => (!proj || t.project === proj) && (who === 'all' || (owed ? owedMe(t) : isMine(t))) &&
       (state === 'all' || (state === 'open' ? !t.done : t.done)));
-    // группы — проекты (свежие сверху), внутри — задачи от новых разговоров к старым
+    // группы — проекты (свежие сверху) или, в «Мне должны», люди (у кого больше открытого — выше);
+    // внутри — задачи от новых разговоров к старым
     const groups = {};
-    items.forEach(t => { const k = t.project || ''; (groups[k] = groups[k] || { ts: 0, items: [] }).items.push(t); groups[k].ts = Math.max(groups[k].ts, t.ts); });
-    const order = Object.keys(groups).sort((a, b) => (!a) - (!b) || groups[b].ts - groups[a].ts);
+    items.forEach(t => {
+      const k = owed ? t.who : t.project || '';
+      const g = groups[k] = groups[k] || { ts: 0, open: 0, items: [] };
+      g.items.push(t); g.ts = Math.max(g.ts, t.ts); g.open += t.done ? 0 : 1;
+    });
+    const order = Object.keys(groups).sort((a, b) => owed ? groups[b].open - groups[a].open || groups[b].ts - groups[a].ts
+      : (!a) - (!b) || groups[b].ts - groups[a].ts);
     order.forEach(k => groups[k].items.sort((a, b) => b.ts - a.ts));
-    const open = r.tasks.filter(t => !t.done && (t.who || '').toLowerCase().includes(me)).length;
+    const open = r.tasks.filter(t => !t.done && isMine(t)).length;
+    const owedOpen = r.tasks.filter(t => !t.done && owedMe(t)).length;
+    const line = owed ? (owedOpen ? `Другие обещали и пока не отметили сделанным: ${owedOpen} ${plural(owedOpen, 'задача', 'задачи', 'задач')}.` : 'Открытых обещаний других людей нет.')
+      : open ? `На вас ${open} ${plural(open, 'открытая задача', 'открытые задачи', 'открытых задач')} из всех встреч.` : 'Открытых задач на вас нет.';
+    const age = t => { const n = ageDays(t); return n ? `${n} ${plural(n, 'день', 'дня', 'дней')} назад` : 'сегодня'; };
+    const taskRow = t => `<label class="task${t.done ? ' done' : ''}"><input type="checkbox" data-k="${t.key}" ${t.done ? 'checked' : ''}>
+          <div class="grow"><div class="what">${esc(t.what)}</div><div class="who">${esc([owed ? '' : t.who || 'не назначено', t.when].filter(Boolean).join(' · '))}
+            ${owed && !t.when ? '' : '· '}<a href="#/job/${t.job}${t.t != null ? '?t=' + Math.floor(t.t) : ''}" title="Открыть разговор">${esc(t.title)}</a>, ${esc((t.date || '').slice(0, 5))}
+            ${owed ? `· <span class="${!t.done && ageDays(t) >= 5 ? 'late' : ''}">${age(t)}</span>` : ''}</div></div>
+          ${owed && !t.done ? `<button class="btn sm ghost" data-rem="${t.key}" title="Скопировать напоминание: что и когда договорились">${icon('copy')}Напомнить</button>` : ''}</label>`;
     view.innerHTML = `<div class="page"><div class="head"><h1>Задачи</h1><div class="grow"></div>
-      <div class="seg" id="fw"><button data-v="mine">Мои</button><button data-v="all">Все</button></div>
+      <div class="seg" id="fw"><button data-v="mine">Мои</button><button data-v="owed">Мне должны</button><button data-v="all">Все</button></div>
       ${projects.length ? `<select class="input" id="fp" style="width:auto;max-width:260px"><option value="">Все проекты</option>
         ${projects.map(p => `<option ${p === proj ? 'selected' : ''}>${esc(p)}</option>`).join('')}</select>` : ''}
       <div class="seg" id="fs"><button data-v="open">Открытые</button><button data-v="done">Сделанные</button><button data-v="all">Все</button></div></div>
-      <div class="muted" style="margin:-8px 0 16px">${open ? `На вас ${open} ${plural(open, 'открытая задача', 'открытые задачи', 'открытых задач')} из всех встреч.` : 'Открытых задач на вас нет.'} <span class="tip">Задачи берутся из кратких содержаний расшифровок.</span></div>
+      <div class="muted" style="margin:-8px 0 16px">${line} <span class="tip">${owed ? 'Здесь задачи, которые на созвонах взяли на себя другие люди. «Напомнить» копирует, что и когда договорились.' : 'Задачи берутся из кратких содержаний расшифровок.'}</span></div>
       ${order.map(k => { const g = groups[k]; return `<div class="card taskgroup">
-        <div class="gh"><span class="pgh">${k ? projChip(k) : '<span class="proj empty">Без проекта</span>'}</span>
+        <div class="gh"><span class="pgh">${owed ? chip(k) : k ? projChip(k) : '<span class="proj empty">Без проекта</span>'}</span>
           <span class="muted small">${g.items.length} ${plural(g.items.length, 'задача', 'задачи', 'задач')}</span></div>
-        ${g.items.map(t => `<label class="task${t.done ? ' done' : ''}"><input type="checkbox" data-k="${t.key}" ${t.done ? 'checked' : ''}>
-          <div><div class="what">${esc(t.what)}</div><div class="who">${esc([t.who || 'не назначено', t.when].filter(Boolean).join(' · '))}
-            · <a href="#/job/${t.job}" title="Открыть разговор">${esc(t.title)}</a>, ${esc((t.date || '').slice(0, 5))}</div></div></label>`).join('')}</div>`; }).join('')
+        ${g.items.map(taskRow).join('')}</div>`; }).join('')
         || `<div class="empty">${icon('check')}<div>Здесь пусто${who === 'mine' ? ` — задач на «${esc(r.user)}» с таким фильтром нет` : ''}.</div></div>`}</div>`;
     $$('#fw button').forEach(b => { b.classList.toggle('on', b.dataset.v === who); b.onclick = () => { who = b.dataset.v; store('tw', who); render(); }; });
     $$('#fs button').forEach(b => { b.classList.toggle('on', b.dataset.v === state); b.onclick = () => { state = b.dataset.v; store('ts', state); render(); }; });
     if ($('#fp')) $('#fp').onchange = e => { proj = e.target.value; store('tp', proj); render(); };
+    $$('[data-rem]').forEach(b => b.onclick = e => {
+      e.preventDefault();
+      const t = r.tasks.find(x => x.key === b.dataset.rem);
+      const text = `${t.who}, напоминаю: ${t.what}${t.when ? ` (срок: ${t.when})` : ''}. Договорились ${(t.date || '').slice(0, 5)} — «${t.title}».`;
+      navigator.clipboard.writeText(text).then(() => toast('Напоминание скопировано')).catch(fail);
+    });
     $$('.task input').forEach(c => c.onchange = () => {
       const t = r.tasks.find(x => x.key === c.dataset.k);
       t.done = c.checked;
@@ -1296,6 +1320,135 @@ async function pageTasks() {
     });
   };
   render();
+}
+
+/* =====================================================================
+   ОБЗОР: итог недели, хронология проекта, моя речь
+   ===================================================================== */
+
+async function pageInsights() {
+  const gone = pageGuard();
+  let tab = store('it') || 'week', lists = null;
+  view.innerHTML = `<div class="page"><div class="head"><h1>Обзор</h1><div class="grow"></div>
+    <div class="seg" id="itab"><button data-v="week">${icon('doc')}Итог недели</button><button data-v="time">${icon('list')}Хронология проекта</button>
+      <button data-v="speech">${icon('mic')}Моя речь</button></div></div><div id="ib"></div></div>`;
+  const draw = async () => {
+    $$('#itab button').forEach(b => b.classList.toggle('on', b.dataset.v === tab));
+    const box = $('#ib');
+    box.innerHTML = '<div class="empty">Собираю…</div>';
+    try {
+      if (tab === 'speech') return await speechTab(box, gone);
+      lists = lists || await api('/api/insights/lists');
+      if (!gone()) (tab === 'week' ? weekTab : timeTab)(box, lists, gone);
+    } catch (e) { box.innerHTML = ''; fail(e); }
+  };
+  $$('#itab button').forEach(b => b.onclick = () => { tab = b.dataset.v; store('it', tab); draw(); });
+  draw();
+}
+
+/** «Ещё не собрано» — с кнопкой, которая зовёт Claude (сам по себе он не вызывается: это его лимиты). */
+function notYet(box, text, btn, onclick) {
+  box.innerHTML = `<div class="empty" style="padding:30px 20px"><div>${text}</div>
+    <button class="btn primary" style="margin-top:12px">${icon('spark')}${btn}</button></div>`;
+  $('button', box).onclick = onclick;
+}
+
+function weekTab(box, lists, gone) {
+  if (!lists.weeks.length) { box.innerHTML = `<div class="empty">${icon('doc')}<div>Пока нет готовых записей.</div></div>`; return; }
+  let start = store('iw');
+  if (!lists.weeks.some(w => w.start === start)) start = lists.weeks[0].start;
+  box.innerHTML = `<div class="card"><div class="ins-bar">
+      <select class="input" id="ws">${lists.weeks.map(w => `<option value="${w.start}" ${w.start === start ? 'selected' : ''}>${w.label} · ${w.count} ${plural(w.count, 'запись', 'записи', 'записей')}</option>`).join('')}</select>
+      <div class="grow"></div><button class="btn" id="wr" hidden>${icon('refresh')}Заново</button>
+      <button class="btn" id="ww" hidden>${icon('word')}Открыть в Word</button><button class="btn primary" id="wc" hidden>${icon('copy')}Копировать</button></div>
+    <div class="muted small tip ins-tip">Итог собирает Claude из кратких содержаний, решений и задач созвонов недели — только сказанное и решённое. Отметки «сделано» берутся со страницы «Задачи».</div>
+    <div id="wbody"></div></div>`;
+  const body = $('#wbody', box), tools = $$('#wr, #ww, #wc', box);
+  const load = async mode => {
+    tools.forEach(b => { b.hidden = true; });
+    body.innerHTML = mode === 'peek' ? '' : '<div class="thinking ins-wait">Собираю итог недели — это до пары минут…</div>';
+    let r;
+    try { r = await api('/api/insights/week', { start, peek: mode === 'peek', fresh: mode === 'fresh' }); } catch (e) { body.innerHTML = ''; return fail(e); }
+    if (gone()) return;
+    if (r.text == null) return notYet(body, `Итога за ${esc(r.label)} ещё нет.`, 'Собрать итог недели', () => load('make'));
+    body.innerHTML = '<textarea class="input ins-text" id="wt"></textarea>';
+    $('#wt', body).value = r.text;
+    tools.forEach(b => { b.hidden = false; });
+  };
+  $('#ws', box).onchange = e => { start = e.target.value; store('iw', start); load('peek'); };
+  $('#wr', box).onclick = () => load('fresh');
+  $('#wc', box).onclick = () => navigator.clipboard.writeText($('#wt', box).value).then(() => toast('Скопировано'));
+  $('#ww', box).onclick = () => api('/api/insights/week-word', { start, text: $('#wt', box).value }).catch(fail);
+  load('peek');
+}
+
+function timeTab(box, lists, gone) {
+  if (!lists.projects.length) { box.innerHTML = `<div class="empty">${icon('folder')}<div>Пока нет записей с проектами.</div></div>`; return; }
+  let project = store('ip');
+  if (!lists.projects.some(p => p.name === project)) project = lists.projects[0].name;
+  box.innerHTML = `<div class="card"><div class="ins-bar">
+      <select class="input" id="ps">${lists.projects.map(p => `<option value="${esc(p.name)}" ${p.name === project ? 'selected' : ''}>${esc(p.name)} · ${p.count} ${plural(p.count, 'запись', 'записи', 'записей')}</option>`).join('')}</select>
+      <div class="grow"></div><span class="muted small" id="pat"></span><button class="btn" id="pr" hidden>${icon('refresh')}Обновить</button></div>
+    <div class="muted small tip ins-tip">Решения по проекту из всех созвонов по порядку. Если позже решение поменяли или отменили, это отмечено у самого решения — со ссылкой на созвон, где это случилось.</div>
+    <div id="pbody"></div></div>`;
+  const body = $('#pbody', box);
+  const STATUS = { 'в силе': ['ok', 'в силе'], 'изменено': ['warn', 'изменено'], 'отменено': ['gone', 'отменено'] };
+  const load = async mode => {
+    $('#pr', box).hidden = true;
+    $('#pat', box).textContent = '';
+    body.innerHTML = mode === 'peek' ? '' : '<div class="thinking ins-wait">Собираю хронологию — это до пары минут…</div>';
+    let r;
+    try { r = await api('/api/insights/timeline', { project, peek: mode === 'peek', fresh: mode === 'fresh' }); } catch (e) { body.innerHTML = ''; return fail(e); }
+    if (gone()) return;
+    if (r.items == null) return notYet(body, 'Хронология этого проекта ещё не собрана.', 'Собрать хронологию', () => load('make'));
+    $('#pr', box).hidden = false;
+    if (r.at) $('#pat', box).textContent = 'собрано ' + new Date(r.at * 1000).toLocaleDateString('ru-RU');
+    const groups = [];
+    r.items.forEach(x => { if (!groups.length || groups[groups.length - 1].job !== x.job) groups.push({ job: x.job, items: [] }); groups[groups.length - 1].items.push(x); });
+    const rec = id => r.records[id] || { title: 'запись', date: '' };
+    body.innerHTML = groups.map(g => `<div class="tl-rec"><div class="tl-date">${esc(rec(g.job).date.slice(0, 5))}</div>
+      <div class="tl-body"><a href="#/job/${g.job}" class="tl-title">${esc(rec(g.job).title)}</a>
+        ${g.items.map(x => { const [cls, label] = STATUS[x.status] || STATUS['в силе'];
+          return `<div class="tl-item ${cls}"><span class="tl-badge">${label}</span><span class="tl-what">${esc(x.what)}</span>
+            ${x.note || x.later ? `<div class="tl-note">→ ${x.later && r.records[x.later] ? `<a href="#/job/${x.later}">${esc(rec(x.later).date.slice(0, 5))}, «${esc(rec(x.later).title)}»</a>${x.note ? ': ' : ''}` : ''}${esc(x.note || '')}</div>` : ''}</div>`; }).join('')}
+      </div></div>`).join('') || '<div class="empty">В записях по этому проекту решений не нашлось.</div>';
+  };
+  $('#ps', box).onchange = e => { project = e.target.value; store('ip', project); load('peek'); };
+  $('#pr', box).onclick = () => load('fresh');
+  load('peek');
+}
+
+async function speechTab(box, gone) {
+  const r = await api('/api/insights/speech');
+  if (gone()) return;
+  if (!r.all) {
+    box.innerHTML = `<div class="empty">${icon('mic')}<div>Ни в одной записи пока не узнан голос «${esc(r.me)}». Подпишите себя в записи — дальше голос будет узнаваться сам.</div></div>`;
+    return;
+  }
+  const a = r.all;
+  const fillers = x => x.top_fillers.map(([f, n]) => `«${esc(f)}» ${n}`).join(', ') || '—';
+  const per100 = x => { const n = Object.values(x.fillers).reduce((s, v) => s + v, 0); return x.words ? (100 * n / x.words).toFixed(1) : '—'; };
+  const tile = (big, small) => `<div class="ins-tile"><b>${big}</b><span>${small}</span></div>`;
+  box.innerHTML = `<div class="card"><h2>Все записи, где узнан ваш голос: ${a.records}</h2>
+      <div class="ins-tiles">
+        ${tile(a.share + '%', 'вашей речи в разговорах')}
+        ${tile(a.wpm ?? '—', 'слов в минуту')}
+        ${tile(a.fillers_per100, 'слов-паразитов на 100 слов')}
+        ${tile(`${a.by_me_h} / ${a.to_me_h}`, 'перебили вы / вас — в час')}
+        ${tile(fmtT(a.longest), 'самый длинный монолог')}
+      </div>
+      <div class="small" style="margin-top:10px"><span class="muted">Чаще всего:</span> ${fillers(a)}</div>
+      <div class="muted small tip ins-tip">Считается на этом компьютере, без ИИ: кто где говорит — по разметке голосов, слова — по черновику GigaAM (в нём паразиты ещё не вычищены). Перебивания — примерно: один вступает, когда другой говорит ещё хотя бы секунду. Темп для разговорной речи обычно 120–160 слов в минуту.</div></div>
+    <div class="card"><h2>По неделям</h2><div class="ins-scroll"><table class="vt ins-table">
+      <thead><tr><th>Неделя</th><th>Записей</th><th>Ваша доля</th><th>Темп</th><th>Паразиты на 100 слов</th><th>Чаще всего</th><th>Перебили вы / вас в час</th><th>Монолог</th></tr></thead>
+      <tbody>${r.weeks.map(w => `<tr><td class="nowrap">${w.label}</td><td>${w.records}</td>
+        <td><div class="ins-share"><div class="bar"><i style="width:${w.share}%"></i></div>${w.share}%</div></td>
+        <td>${w.wpm ?? '—'}</td><td>${w.fillers_per100}</td><td class="small">${fillers(w)}</td><td>${w.by_me_h} / ${w.to_me_h}</td><td>${fmtT(w.longest)}</td></tr>`).join('')}</tbody></table></div></div>
+    <div class="card"><h2>Последние записи</h2><div class="ins-scroll"><table class="vt ins-table">
+      <thead><tr><th>Дата</th><th>Запись</th><th>Ваша доля</th><th>Темп</th><th>Паразиты на 100 слов</th><th>Перебили вы / вас</th></tr></thead>
+      <tbody>${r.records.map(x => `<tr><td class="nowrap">${esc(x.date.slice(0, 5))}</td><td><a href="#/job/${x.job}">${esc(x.title)}</a></td>
+        <td>${x.total ? Math.round(100 * x.mine / x.total) : 0}%</td><td>${x.my_dia >= 30 ? Math.round(x.words / (x.my_dia / 60)) : '—'}</td>
+        <td>${per100(x)}</td><td>${x.by_me} / ${x.to_me}</td></tr>`).join('')}</tbody></table></div></div>`;
 }
 
 /* =====================================================================
@@ -1389,6 +1542,7 @@ async function pageGlossary() {
   view.innerHTML = `<div class="page"><div class="head"><h1>Словарь</h1><div class="grow"></div>
       <button class="btn primary" id="gs" disabled>Сохранить</button></div>
     <div class="note" style="margin-bottom:14px">Термины и имена, которые модели часто путают. Редактор сверяется со словарём при каждой расшифровке. Чтобы применить правки к готовой записи, откройте её → ⋯ → «Свести итог заново».</div>
+    <div class="card" style="margin-bottom:14px" id="gsug"></div>
     <div class="card" style="margin-bottom:14px"><h2>Быстро добавить</h2>
       <div class="gloss-add"><input class="input" id="g1" placeholder="Как правильно: JewelSuite"><input class="input" id="g2" placeholder="Что это (необязательно)">
         <input class="input" id="g3" placeholder="Как ошибаются: джил сьют, джуэл сьют"><button class="btn" id="ga">Добавить</button></div></div>
@@ -1398,13 +1552,40 @@ async function pageGlossary() {
   let dirty = false;
   ta.oninput = () => { dirty = true; save.disabled = false; };
   save.onclick = () => api('/api/glossary', { text: ta.value }).then(() => { dirty = false; save.disabled = true; toast('Словарь сохранён'); }).catch(fail);
+  const addLine = (a, b, c) => {
+    ta.value = ta.value.replace(/\s*$/, '\n') + a + (b ? ` (${b})` : '') + (c ? ` — ${c}` : '') + '\n';
+    return api('/api/glossary', { text: ta.value }).then(() => { toast(`«${a}» добавлено в словарь`); ta.scrollTop = ta.scrollHeight; }).catch(fail);
+  };
   $('#ga').onclick = () => {
     const a = $('#g1').value.trim(), b = $('#g2').value.trim(), c = $('#g3').value.trim();
     if (!a) return;
-    ta.value = ta.value.replace(/\s*$/, '\n') + a + (b ? ` (${b})` : '') + (c ? ` — ${c}` : '') + '\n';
     ['#g1', '#g2', '#g3'].forEach(s => { $(s).value = ''; });
-    api('/api/glossary', { text: ta.value }).then(() => { toast(`«${a}» добавлено в словарь`); ta.scrollTop = ta.scrollHeight; }).catch(fail);
+    addLine(a, b, c);
   };
+  // предложения из записей: ищет Claude по кнопке, добавлять или нет — решает человек
+  const drawSugg = (s, busy) => {
+    const box = $('#gsug');
+    if (!box) return;
+    box.innerHTML = `<div class="ins-bar"><h2 style="margin:0">Предложения из записей</h2><div class="grow"></div>
+        ${s.at && !busy ? `<span class="muted small">искали ${new Date(s.at * 1000).toLocaleDateString('ru-RU')}</span>` : ''}
+        <button class="btn" id="gfind" ${busy ? 'disabled' : ''}>${icon('search')}${busy ? 'Ищу — это до пары минут…' : 'Поискать в записях'}</button></div>
+      <div class="muted small tip ins-tip">Claude просматривает последние расшифровки и предлагает термины, названия и имена, которые GigaAM пишет с ошибками. Добавлять или нет — решаете вы.</div>
+      ${s.items.length ? `<div class="sugg-list">${s.items.map((x, i) => `<div class="sugg-row"><div class="grow"><b>${esc(x.term)}</b>${x.note ? ` <span class="muted">(${esc(x.note)})</span>` : ''}
+          ${x.errors.length ? `<div class="err">GigaAM пишет: ${esc(x.errors.join(', '))}</div>` : ''}</div>
+          <button class="btn sm" data-sa="${i}">Добавить</button><button class="btn sm ghost" data-sd="${i}">Не надо</button></div>`).join('')}</div>`
+        : s.at && !busy ? '<div class="muted small" style="margin-top:8px">Новых предложений нет.</div>' : ''}`;
+    $('#gfind', box).onclick = () => {
+      drawSugg(s, true);
+      api('/api/glossary/suggest', {}).then(n => { if (!gone()) drawSugg(n); }).catch(e => { if (!gone()) drawSugg(s); fail(e); });
+    };
+    $$('[data-sa]', box).forEach(b => b.onclick = () => {
+      const x = s.items.splice(+b.dataset.sa, 1)[0];
+      addLine(x.term, x.note, x.errors.join(', '));
+      drawSugg(s);
+    });
+    $$('[data-sd]', box).forEach(b => b.onclick = () => api('/api/glossary/suggest/dismiss', { term: s.items[+b.dataset.sd].term }).then(drawSugg).catch(fail));
+  };
+  api('/api/glossary/suggest').then(s => { if (!gone()) drawSugg(s); }).catch(() => { /* ничего */ });
   const warn = e => { if (dirty) { e.preventDefault(); e.returnValue = ''; } };
   window.addEventListener('beforeunload', warn);
   onLeave(() => { window.removeEventListener('beforeunload', warn); if (dirty && confirm('Сохранить правки словаря?')) api('/api/glossary', { text: ta.value }).catch(fail); });

@@ -150,6 +150,7 @@ textarea.input { height: auto; padding: 10px 12px; resize: vertical; }
 .switch input:checked + i::after { left: 19px; }
 .empty { text-align: center; color: var(--muted); padding: 50px 20px; }
 .empty svg.i { width: 40px; height: 40px; stroke-width: 1.4; margin-bottom: 8px; }
+.empty .btn svg.i { width: 16px; height: 16px; stroke-width: 2; margin: 0; }
 .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 14px; }
 .grid > .card + .card { margin-top: 0; }
 .grid.wide { grid-template-columns: repeat(auto-fill, minmax(460px, 1fr)); }
@@ -321,7 +322,42 @@ canvas.wave { width: 100%; height: 64px; display: block; cursor: pointer; }
 .side-col .card { margin: 0; }
 .side-col ul { margin: 0; padding-left: 18px; }
 .side-col li { margin: 4px 0; }
-.task { display: grid; grid-template-columns: 22px 1fr; gap: 6px; padding: 5px 0; }
+.task { display: grid; grid-template-columns: 22px 1fr auto; gap: 6px; padding: 5px 0; align-items: start; }
+.task .late { color: var(--warn); font-weight: 600; }
+.btn[hidden] { display: none; }
+
+/* ---------- обзор ---------- */
+.ins-bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.ins-bar select.input { width: auto; max-width: 100%; }
+.ins-tip { margin: 8px 0 4px; }
+.ins-wait { padding: 24px 0; }
+.ins-text { min-height: 420px; margin-top: 10px; font-size: 14px; line-height: 1.5; }
+.ins-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+.ins-tile { background: var(--panel2); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; }
+.ins-tile b { display: block; font-size: 22px; font-weight: 650; }
+.ins-tile span { font-size: 12.5px; color: var(--muted); }
+.ins-scroll { overflow-x: auto; }
+.ins-table td { padding: 9px 10px; }
+.ins-share { display: flex; align-items: center; gap: 8px; min-width: 110px; }
+.ins-share .bar { flex: 1; min-width: 50px; }
+.tl-rec { display: grid; grid-template-columns: 54px 1fr; gap: 12px; padding: 12px 0; border-top: 1px dashed var(--line); }
+.tl-rec:first-child { border-top: 0; }
+.tl-date { font-weight: 650; color: var(--muted); padding-top: 1px; }
+.tl-title { font-weight: 600; display: inline-block; margin-bottom: 6px; }
+.tl-item { margin: 6px 0; }
+.tl-badge { display: inline-block; font-size: 11.5px; font-weight: 600; padding: 1px 8px; border-radius: 10px; margin-right: 8px;
+  background: var(--ok-soft); color: var(--ok); }
+.tl-item.warn .tl-badge { background: var(--warn-soft); color: var(--warn); }
+.tl-item.gone .tl-badge { background: var(--rec-soft); color: var(--rec); }
+.tl-item.gone .tl-what { text-decoration: line-through; color: var(--muted); }
+.tl-note { font-size: 12.5px; color: var(--muted); margin: 3px 0 0 4px; }
+
+/* ---------- предложения для словаря ---------- */
+.sugg-list { display: grid; gap: 6px; margin-top: 10px; }
+.sugg-row { display: flex; align-items: center; gap: 10px; padding: 6px 0; border-top: 1px dashed var(--line); }
+.sugg-row:first-child { border-top: 0; }
+.sugg-row .grow { flex: 1; min-width: 0; }
+.sugg-row .err { color: var(--muted); font-size: 12.5px; }
 .task input { margin-top: 4px; width: 16px; height: 16px; accent-color: var(--accent); }
 .task.done .what { text-decoration: line-through; color: var(--muted); }
 .task .who { font-size: 12px; color: var(--muted); }
