@@ -1,4 +1,4 @@
-"""Что программа докачивает по кнопке в Настройках: распознавание речи, Whisper, Claude Code.
+"""Что программа докачивает по кнопке в Настройках: распознавание речи, Whisper, Claude Code, Codex.
 Установщик для Mac ставит только саму программу; тяжёлое (библиотеки ≈ 230 МБ, модели от 0,6 до 3,6 ГБ)
 пользователь скачивает сам, когда захочет. Скачивание идёт отдельным процессом
 (python components.py <id> [вариант Whisper]) и переживает закрытие окна; ход — в Записи/.downloads/<что>.json.
@@ -12,7 +12,7 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
-from common import JOBS, MODELS, ROOT, find_claude, load_settings, read_json, save_settings, write_json
+from common import JOBS, MODELS, ROOT, find_claude, find_codex, load_settings, read_json, save_settings, write_json
 from sysdeps import IS_WIN, find_program, gui_python, machine_info, open_console, pid_alive, spawn_detached
 
 STATUS_DIR = JOBS / ".downloads"            # ход каждой загрузки — своим файлом: качать можно всё сразу
@@ -47,6 +47,13 @@ INFO = {
                    {"name": "Claude Code",
                     "what": "программа Anthropic: краткое содержание, решения, задачи; получает только текст, не звук",
                     "size": "", "from": "claude.ai"}]},
+    "codex": {"title": "Codex — краткое содержание и задачи через ChatGPT", "size": "", "need": False,
+              "about": "Нужна подписка ChatGPT (Plus или Pro). Можно вместо Claude Code: выберите Codex в «Кто делает итог». "
+                       "Через него же ChatGPT видит записи (Подключение MCP).",
+              "parts": [
+                  {"name": "Codex",
+                   "what": "программа OpenAI: краткое содержание, решения, задачи; получает только текст, не звук",
+                   "size": "", "from": "chatgpt.com"}]},
     "browser": {"title": "Расширение для Chrome — кто говорит в созвонах", "size": "", "need": False,
                 "about": "Для созвонов в браузере: Телемост, Zoom, Teams, Google Meet, МТС Линк, Битрикс24. "
                          "Подсказывает Qamyal, кто сейчас говорит, — расшифровка подписывается именами из созвона.",
@@ -158,6 +165,8 @@ def ready(cid: str) -> bool:
         return whisper_ready()
     if cid == "browser":
         return time.time() - (read_json(EXT_SEEN, {}) or {}).get("seen", 0) < 30 * 86400
+    if cid == "codex":
+        return bool(find_codex(load_settings()))
     return bool(find_claude(load_settings()))
 
 
@@ -194,15 +203,16 @@ def status() -> dict:
     """Для окна: что установлено и что сейчас качается."""
     all_jobs = jobs()
     items = [{"id": k, **v, "ready": ready(k)} for k, v in INFO.items()]
+    by_id = {x["id"]: x for x in items}
     active = whisper_model()
     machine = machine_info()
     advice, why = recommend_whisper(machine)
-    items[1]["variants"] = [{"key": k, "size": m["size"], "what": m["what"], "best": k == advice,
-                             "downloaded": whisper_downloaded(k), "active": k == active,
-                             "deletable": whisper_downloaded(k) and k != active}
-                            for k, m in WHISPER_MODELS.items()]
-    items[1]["advice"] = {"key": advice, "why": why, "machine": machine}
-    items[3]["folder"] = str(EXTENSION)
+    by_id["whisper"]["variants"] = [{"key": k, "size": m["size"], "what": m["what"], "best": k == advice,
+                                     "downloaded": whisper_downloaded(k), "active": k == active,
+                                     "deletable": whisper_downloaded(k) and k != active}
+                                    for k, m in WHISPER_MODELS.items()]
+    by_id["whisper"]["advice"] = {"key": advice, "why": why, "machine": machine}
+    by_id["browser"]["folder"] = str(EXTENSION)
     return {"items": items, "jobs": all_jobs}
 
 
@@ -261,6 +271,18 @@ def start(cid: str, model: str = "") -> None:
             open_console(["/bin/bash", "-c", "curl -fsSL https://claude.ai/install.sh | bash && ~/.local/bin/claude"],
                          "Установка Claude Code")
         return
+    if cid == "codex":                            # официальный установщик OpenAI, затем вход в ChatGPT
+        s = load_settings()
+        s["codex_pending"] = True                 # появится, а Claude Code нет, — итог начнёт делать Codex
+        save_settings(s)
+        if IS_WIN:
+            open_console(["powershell", "-NoProfile", "-Command",
+                          "irm https://chatgpt.com/codex/install.ps1 | iex; "
+                          "& $env:LOCALAPPDATA\\Programs\\OpenAI\\Codex\\bin\\codex.exe login"], "Установка Codex")
+        else:
+            open_console(["/bin/bash", "-c", "curl -fsSL https://chatgpt.com/codex/install.sh | sh && ~/.local/bin/codex login"],
+                         "Установка Codex")
+        return
     if cid == "whisper":                          # файлы модели качаются сами по себе — распознавание не нужно
         if model not in WHISPER_MODELS:
             raise RuntimeError("Нет такого варианта Whisper")
@@ -276,6 +298,12 @@ def claude_appeared(s: dict) -> bool:
     if s.get("claude_pending") and find_claude(s):
         s.pop("claude_pending")
         s["editor"] = "claude"
+        save_settings(s)
+        return True
+    if s.get("codex_pending") and find_codex(s):
+        s.pop("codex_pending")
+        if not find_claude(s):
+            s["editor"] = "codex"
         save_settings(s)
         return True
     return False

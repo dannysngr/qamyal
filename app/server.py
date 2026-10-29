@@ -237,7 +237,7 @@ def components_get():
     return components.status()
 
 
-@app.post("/api/components/<cid:re:speech|whisper|claude>")
+@app.post("/api/components/<cid:re:speech|whisper|claude|codex>")
 def components_start(cid):
     import components
     try:

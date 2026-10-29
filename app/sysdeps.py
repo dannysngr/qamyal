@@ -283,7 +283,8 @@ def find_program(name: str, extra: list = ()) -> str:
         places += [Path("/opt/homebrew/bin") / exe, Path("/usr/local/bin") / exe,
                    home / ".npm-global" / "bin" / exe, home / ".claude" / "local" / exe]
     if IS_WIN:
-        places += [home / "AppData/Local/Microsoft/WinGet/Links" / exe, Path(os.environ.get("APPDATA", "")) / "npm" / (name + ".cmd")]
+        places += [home / "AppData/Local/Microsoft/WinGet/Links" / exe, Path(os.environ.get("APPDATA", "")) / "npm" / (name + ".cmd"),
+                   Path(os.environ.get("LOCALAPPDATA", "")) / "Programs/OpenAI/Codex/bin" / exe]   # установщик Codex
     for p in places:
         if p and Path(p).exists():
             return str(p)

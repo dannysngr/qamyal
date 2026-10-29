@@ -1848,7 +1848,7 @@ function drawComps(gone) {
       if (x.variants) right = '';
       else if (x.ready) right = `<span class="ok">${icon('check')}Установлено</span>`;
       else if (running(x.id)) right = progress(jobOf(x.id));
-      else if (x.id === 'claude') right = `<button class="btn sm" data-get="claude">${icon('spark')}Установить</button>`;
+      else if (x.id === 'claude' || x.id === 'codex') right = `<button class="btn sm" data-get="${x.id}">${icon('spark')}Установить</button>`;
       else if (x.id === 'browser') right = `<button class="btn sm primary" data-ext="1">${icon('screen')}Установить</button>`;
       else right = getBtn(`data-get="${x.id}"`, failed(x.id), x.size);
       return `<div class="comp"><div><b class="ctitle">${esc(x.title)}</b>${x.need ? ' <span class="need">нужно</span>' : ''}
@@ -1867,7 +1867,8 @@ function drawComps(gone) {
       try { await api(path, data); if (after) after(); last = ''; load(); } catch (e) { b.disabled = false; fail(e); }
     };
     $$('#comps [data-get]').forEach(b => b.onclick = () => act(b, '/api/components/' + b.dataset.get, { model: b.dataset.model || '' },
-      b.dataset.get === 'claude' ? () => toast('Откроется Терминал: установка Claude Code, затем вход в ваш аккаунт Claude') : null));
+      b.dataset.get === 'claude' ? () => toast('Откроется Терминал: установка Claude Code, затем вход в ваш аккаунт Claude')
+        : b.dataset.get === 'codex' ? () => toast('Откроется Терминал: установка Codex, затем вход в ваш аккаунт ChatGPT') : null));
     // Chrome не даёт другим программам открыть chrome://extensions (вместо неё — пустое окно),
     // поэтому только шаги и кнопки «Копировать»
     $$('#comps [data-ext]').forEach(b => b.onclick = () => {
