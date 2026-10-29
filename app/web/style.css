@@ -184,9 +184,12 @@ textarea.input { height: auto; padding: 10px 12px; resize: vertical; }
 .upd > svg.i { width: 26px; height: 26px; color: var(--accent); flex: none; }
 .upd-ok { display: flex; align-items: center; gap: 6px; margin: -4px 0 12px; }
 .upd-ok svg.i { color: var(--ok); }
-.mcp-on { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
-.mcp-on svg.i { color: var(--ok); }
-.mcp-btns { display: flex; gap: 8px; margin-bottom: 4px; }
+.mcp-list { display: grid; gap: 6px; margin-bottom: 6px; max-width: 520px; }
+.mcp-app { display: grid; grid-template-columns: 18px 130px 1fr auto; align-items: center; gap: 8px; min-height: 30px; }
+.mcp-app.off { opacity: .45; }
+.mcp-dot { width: 16px; height: 16px; border-radius: 50%; border: 1.5px solid var(--muted); display: grid; place-items: center; }
+.mcp-dot.on { border-color: var(--ok); background: var(--ok); }
+.mcp-dot svg { width: 12px; height: 12px; fill: none; stroke: #fff; stroke-width: 3.2; stroke-linecap: round; stroke-linejoin: round; }
 .about .purpose { margin: 14px 0 0; font-size: 14px; line-height: 1.55; }
 .about-head { display: flex; gap: 12px; align-items: center; font-size: 15px; }
 .about-head .logo { width: 40px; height: 40px; }

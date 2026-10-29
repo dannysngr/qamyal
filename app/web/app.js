@@ -1626,7 +1626,7 @@ async function pageSettings() {
     <div class="row"><label>Тема</label><div><div class="seg" id="th">
       ${[['system', 'Системная'], ['light', 'Светлая'], ['dark', 'Тёмная']].map(([v, l]) => `<button data-v="${v}" class="${(s.theme || 'system') === v ? 'on' : ''}">${l}</button>`).join('')}</div></div></div>
     <div class="row"><label>Уведомления</label><div><label class="switch"><input type="checkbox" id="nt" ${s.notify ? 'checked' : ''}><i></i>Сообщать, когда расшифровка готова</label></div></div>
-    <div class="row"><label id="mcpl">Claude видит записи (MCP)</label><div id="mcp"></div></div>
+    <div class="row"><label>Подключение MCP</label><div id="mcp"></div></div>
     <div class="row"><label>Где лежат записи</label><div><code>${esc(r.paths.jobs)}</code> <button class="btn sm" id="of" style="margin-left:8px">${icon('folder')}Открыть</button></div></div>
   </div></div>
   <div class="card" style="margin-top:14px"><h2>Проекты</h2>
@@ -1673,33 +1673,31 @@ async function pageSettings() {
   drawComps(gone);
 }
 
-/** Настройки → «Claude видит записи (MCP)»: Qamyal как MCP-сервер для Claude Desktop, Claude Code и Codex
- *  (Codex — только если установлен). Обратное направление к «Кто делает итог». */
+/** Настройки → «Подключение MCP»: Qamyal как MCP-сервер для Claude Desktop, Claude Code и Codex —
+ *  у каждой программы своя кнопка; не установленная — серым. Обратное направление к «Кто делает итог». */
 async function drawMcp(gone, m) {
   try { m = m || await api('/api/claude-link'); } catch { m = null; }
   if (gone()) return;
   $('#mcp').closest('.row').hidden = !m;           // сервер не ответил — пустую строку не показываем
   if (!m) return;
-  const cx = m.codex_installed;
-  $('#mcpl').textContent = cx ? 'Claude и Codex видят записи (MCP)' : 'Claude видит записи (MCP)';
-  const where = [m.desktop && 'Claude Desktop', m.code && 'Claude Code', m.codex && 'Codex'].filter(Boolean).join(', ');
-  const can = m.desktop_installed || m.code_installed || cx;
-  $('#mcp').innerHTML = `
-    ${where ? `<div class="mcp-on">${icon('check')}<span>Подключено:</span> <span translate="no">${where}</span></div>` : ''}
-    ${can ? `<div class="mcp-btns"><button class="btn sm${where ? '' : ' primary'}" id="mcpgo">${where ? 'Подключить заново' : 'Подключить'}</button>
-      ${where ? '<button class="btn sm ghost" id="mcpoff">Отключить</button>' : ''}</div>`
-      : '<div class="help">Claude Desktop и Claude Code на этом компьютере не найдены.</div>'}
-    <div class="help">${cx ? 'Это не про итог: здесь вы спрашиваете Claude или Codex в их чате, а они сами смотрят записи в Qamyal.'
-      : 'Это не про итог: здесь вы спрашиваете Claude в его чате, а он сам смотрит записи в Qamyal.'}
-      Можно искать по записям, читать расшифровки и задачи, отмечать и добавлять задачи. Записи остаются на компьютере: в чат уходит только то, что нужно для ответа.</div>`;
-  const set = on => api('/api/claude-link', { on }).then(x => {
-    drawMcp(gone, x);
-    if (x.errors.length) return toast(x.errors.join('; '), true);
-    toast(!on ? 'Отключено' : cx ? 'Подключено. Перезапустите Claude и Codex, чтобы они увидели записи'
-      : 'Подключено. Перезапустите Claude, чтобы он увидел записи');
-  }).catch(fail);
-  if ($('#mcpgo')) $('#mcpgo').onclick = () => set(true);
-  if ($('#mcpoff')) $('#mcpoff').onclick = () => set(false);
+  const apps = [['desktop', 'Claude Desktop'], ['code', 'Claude Code'], ['codex', 'Codex']];
+  $('#mcp').innerHTML = `<div class="mcp-list">${apps.map(([k, name]) => {
+    const on = m[k], has = m[k + '_installed'];
+    return `<div class="mcp-app${has ? '' : ' off'}">
+      <span class="mcp-dot${on ? ' on' : ''}">${on ? '<svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>' : ''}</span><b translate="no">${name}</b>
+      <span class="muted small">${on ? 'подключён' : has ? 'установлен, можно подключить' : 'не установлен'}</span>
+      ${has ? `<button class="btn sm${on ? ' ghost' : ' primary'}" data-mcp="${k}" data-on="${on ? 0 : 1}">${on ? 'Отключить' : 'Подключить'}</button>` : ''}</div>`;
+  }).join('')}</div>
+    <div class="help">Это не про итог: здесь вы задаёте вопрос в чате Claude или Codex, а они сами смотрят записи в Qamyal. Можно искать по записям, читать расшифровки и задачи, отмечать и добавлять задачи. Записи остаются на компьютере: в чат уходит только то, что нужно для ответа.</div>`;
+  $$('#mcp [data-mcp]').forEach(b => b.onclick = () => {
+    const on = b.dataset.on === '1', name = apps.find(a => a[0] === b.dataset.mcp)[1];
+    b.disabled = true;
+    api('/api/claude-link', { on, which: [b.dataset.mcp] }).then(x => {
+      drawMcp(gone, x);
+      if (x.errors.length) return toast(x.errors.join('; '), true);
+      toast(on ? `${name}: подключено — перезапустите программу, чтобы она увидела записи` : `${name}: отключено`);
+    }).catch(e => { b.disabled = false; fail(e); });
+  });
 }
 
 /** Новая версия (только Mac): Qamyal сам скачивает образ с GitHub, ставит и перезапускается. */

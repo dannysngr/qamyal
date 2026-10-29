@@ -77,10 +77,13 @@ def _codex(on: bool) -> None:
         tmp.replace(path)
 
 
-def connect(s: dict, on: bool = True) -> dict:
-    """on=False — убрать Qamyal отовсюду."""
+CLIENTS = ("desktop", "code", "codex")
+
+
+def connect(s: dict, on: bool = True, which=CLIENTS) -> dict:
+    """Подключить (on=False — отключить) Qamyal в выбранных программах: desktop, code, codex."""
     errors = []
-    for p in claude_desktop_configs():
+    for p in claude_desktop_configs() if "desktop" in which else []:
         cfg = read_json(p, None) if p.exists() else {}      # битый файл не перезаписываем
         if not isinstance(cfg, dict):
             errors.append(f"Не удалось прочитать {p} — файл настроек Claude Desktop повреждён")
@@ -91,14 +94,14 @@ def connect(s: dict, on: bool = True) -> dict:
         elif servers.pop(NAME, None) is None:
             continue
         write_json(p, cfg, indent=2)
-    if find_claude(s):
+    if "code" in which and find_claude(s):
         _claude(s, "remove", "-s", "user", NAME)            # прежний путь (программу перенесли) — заменяем
         if on:
             e = entry()
             r = _claude(s, "add", "-s", "user", NAME, "--", e["command"], *e["args"])
             if r.returncode:
                 errors.append("Claude Code: " + (r.stderr or r.stdout).strip()[-300:])
-    if find_codex(s) or not on:
+    if "codex" in which and (find_codex(s) or not on):
         try:
             _codex(on)
         except (OSError, ValueError) as e:

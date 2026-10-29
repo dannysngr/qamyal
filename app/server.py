@@ -1039,9 +1039,11 @@ def claude_link_get():
 
 @app.post("/api/claude-link")
 def claude_link_set():
-    """Подключить Qamyal к Claude Desktop и Claude Code (MCP) или отключить: {"on": false}."""
+    """Подключить Qamyal как MCP-сервер ({"on": false} — отключить) в Claude Desktop, Claude Code, Codex
+    или только в некоторых: {"which": ["code"]}."""
     import claude_link
-    return claude_link.connect(load_settings(), on=body().get("on", True) is not False)
+    which = [w for w in body().get("which") or claude_link.CLIENTS if w in claude_link.CLIENTS]
+    return claude_link.connect(load_settings(), on=body().get("on", True) is not False, which=which)
 
 
 @app.post("/api/settings")
