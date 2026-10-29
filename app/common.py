@@ -120,10 +120,13 @@ def find_codex(s: dict) -> str:
     return find_program("codex", [ROOT / "tools" / "codex" / ("codex.exe" if IS_WIN else "codex")])
 
 
+def codex_home() -> Path:
+    return Path(os.environ.get("CODEX_HOME") or Path.home() / ".codex")
+
+
 def codex_status(s: dict) -> dict:
     exe = find_codex(s)
-    home = Path(os.environ.get("CODEX_HOME") or Path.home() / ".codex")
-    return {"installed": bool(exe), "logged_in": bool(exe) and (home / "auth.json").exists()}
+    return {"installed": bool(exe), "logged_in": bool(exe) and (codex_home() / "auth.json").exists()}
 
 
 def save_settings(s: dict) -> None:
