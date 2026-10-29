@@ -1673,16 +1673,18 @@ async function pageSettings() {
   drawComps(gone);
 }
 
-/** Настройки → «Подключение MCP»: Qamyal как MCP-сервер для Claude Desktop, Claude Code и Codex —
- *  у каждой программы своя кнопка; не установленная — серым. Обратное направление к «Кто делает итог». */
+/** Настройки → «Подключение MCP»: Qamyal как MCP-сервер. Строка «Claude» — сразу чат (Claude Desktop) и Code
+ *  (у них разные файлы настроек), строка «ChatGPT Codex» — Codex; не установленная — серым.
+ *  Обратное направление к «Кто делает итог». */
 async function drawMcp(gone, m) {
   try { m = m || await api('/api/claude-link'); } catch { m = null; }
   if (gone()) return;
   $('#mcp').closest('.row').hidden = !m;           // сервер не ответил — пустую строку не показываем
   if (!m) return;
-  const apps = [['desktop', 'Claude Desktop'], ['code', 'Claude Code'], ['codex', 'Codex']];
-  $('#mcp').innerHTML = `<div class="mcp-list">${apps.map(([k, name]) => {
-    const on = m[k], has = m[k + '_installed'];
+  const apps = [['claude', 'Claude', ['desktop', 'code']], ['codex', 'ChatGPT Codex', ['codex']]];
+  $('#mcp').innerHTML = `<div class="mcp-list">${apps.map(([k, name, parts]) => {
+    const got = parts.filter(p => m[p + '_installed']), has = got.length > 0,
+          on = has && got.every(p => m[p]);        // подключён, когда подключены все установленные части
     return `<div class="mcp-app${has ? '' : ' off'}">
       <span class="mcp-dot${on ? ' on' : ''}">${on ? '<svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>' : ''}</span><b translate="no">${name}</b>
       <span class="muted small">${on ? 'подключён' : has ? 'установлен, можно подключить' : 'не установлен'}</span>
@@ -1690,9 +1692,9 @@ async function drawMcp(gone, m) {
   }).join('')}</div>
     <div class="help">Это не про итог: здесь вы задаёте вопрос в чате Claude или Codex, а они сами смотрят записи в Qamyal. Можно искать по записям, читать расшифровки и задачи, отмечать и добавлять задачи. Записи остаются на компьютере: в чат уходит только то, что нужно для ответа.</div>`;
   $$('#mcp [data-mcp]').forEach(b => b.onclick = () => {
-    const on = b.dataset.on === '1', name = apps.find(a => a[0] === b.dataset.mcp)[1];
+    const on = b.dataset.on === '1', [, name, parts] = apps.find(a => a[0] === b.dataset.mcp);
     b.disabled = true;
-    api('/api/claude-link', { on, which: [b.dataset.mcp] }).then(x => {
+    api('/api/claude-link', { on, which: parts }).then(x => {
       drawMcp(gone, x);
       if (x.errors.length) return toast(x.errors.join('; '), true);
       toast(on ? `${name}: подключено — перезапустите программу, чтобы она увидела записи` : `${name}: отключено`);
