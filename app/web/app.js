@@ -1675,8 +1675,10 @@ async function pageSettings() {
 
 /** Настройки → «Claude и записи»: Qamyal как MCP-сервер для Claude Desktop и Claude Code. */
 async function drawMcp(gone, m) {
-  try { m = m || await api('/api/claude-link'); } catch { return; }
+  try { m = m || await api('/api/claude-link'); } catch { m = null; }
   if (gone()) return;
+  $('#mcp').closest('.row').hidden = !m;           // сервер не ответил — пустую строку не показываем
+  if (!m) return;
   const where = [m.desktop && 'Claude Desktop', m.code && 'Claude Code'].filter(Boolean).join(', ');
   const can = m.desktop_installed || m.code_installed;
   $('#mcp').innerHTML = `
