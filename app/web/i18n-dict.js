@@ -593,4 +593,14 @@ const I18N_ROWS = [
   ['Проектов пока нет — они появятся после расшифровок.', 'No projects yet — they will appear after transcripts.', 'ХӀинца проекташ яц — расшифровкашкахь тӀаьхьа гучуйолу.'],
   ['Проекты сохранены', 'Projects saved', 'Проекташ Ӏалашйина'],
   ['Войдите в ChatGPT в открывшемся окне, потом откройте настройки заново', 'Sign in to ChatGPT in the window that opened, then reopen settings', 'Схьаделлачу корехь ChatGPT-е чувала, тӀаккха нисдарш юха схьаелла'],
+  // ---------- Claude и записи (MCP) ----------
+  ['Claude и записи', 'Claude and recordings', 'Claude а, дӀаяздарш а'],
+  ['Подключено:', 'Connected:', 'Вовшахтоьхна:'],
+  ['Подключить к Claude', 'Connect to Claude', 'Claude-ца вовшахтоха'],
+  ['Подключить заново', 'Reconnect', 'Юха вовшахтоха'],
+  ['Отключить', 'Disconnect', 'ДӀасакъасто'],
+  ['Claude Desktop и Claude Code на этом компьютере не найдены.', 'Claude Desktop and Claude Code were not found on this computer.', 'Хокху компьютерехь Claude Desktop а, Claude Code а ца карийна.'],
+  ['Claude сможет искать в записях, читать расшифровки и задачи, отмечать и добавлять задачи — прямо в чате Claude Desktop или Claude Code. Записи остаются на компьютере: Claude получает только то, что ищет для ответа.', 'Claude will be able to search your recordings, read transcripts and tasks, and mark or add tasks — right in a Claude Desktop or Claude Code chat. Recordings stay on this computer: Claude only gets what it looks up for an answer.', 'Claude-на дӀаяздаршкахь лаха, расшифровкаш а, декхарш а еша, декхарш билгалдаха а, тӀетоха а йиш хир ю — Claude Desktop я Claude Code чатехь. ДӀаяздарш компьютерехь дуьсу: Claude-на жоп дала оьшург бен ца кхочу.'],
+  ['Подключено. Перезапустите Claude, чтобы он увидел записи', 'Connected. Restart Claude so it can see your recordings', 'Вовшахтоьхна. Claude юха схьаелла, дӀаяздарш гуш хилийта'],
+  ['Отключено', 'Disconnected', 'ДӀасакъастийна'],
 ];

@@ -259,6 +259,28 @@ def create_job(f: Path, s: dict, move: bool = False, name: str = None, when: flo
     return d
 
 
+VERSIONS_KEEP = 30
+
+
+def versions_dir(d: Path) -> Path:
+    return d / "черновики" / "версии"
+
+
+def backup(d: Path, what: str) -> None:
+    """Прежний итог — в черновики\\версии; его возвращает «Отменить»."""
+    import shutil
+    cur = d / "черновики" / "итог.json"
+    if not cur.exists():
+        return
+    vd = versions_dir(d)
+    vd.mkdir(exist_ok=True)
+    shutil.copy2(cur, vd / f"{time.time_ns()}.json")
+    with (vd / "журнал.txt").open("a", encoding="utf-8") as f:
+        f.write(f"{time.strftime('%d.%m %H:%M')} {what}\n")
+    for old in sorted(vd.glob("*.json"))[:-VERSIONS_KEEP]:
+        old.unlink()
+
+
 def safe_name(name: str) -> str:
     name = re.sub(r'[<>:"/\\|?*\x00-\x1f]', " ", name).strip(" .")
     return re.sub(r"\s+", " ", name)[:80] or "Запись"

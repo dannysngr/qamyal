@@ -184,6 +184,9 @@ textarea.input { height: auto; padding: 10px 12px; resize: vertical; }
 .upd > svg.i { width: 26px; height: 26px; color: var(--accent); flex: none; }
 .upd-ok { display: flex; align-items: center; gap: 6px; margin: -4px 0 12px; }
 .upd-ok svg.i { color: var(--ok); }
+.mcp-on { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
+.mcp-on svg.i { color: var(--ok); }
+.mcp-btns { display: flex; gap: 8px; margin-bottom: 4px; }
 .about .purpose { margin: 14px 0 0; font-size: 14px; line-height: 1.55; }
 .about-head { display: flex; gap: 12px; align-items: center; font-size: 15px; }
 .about-head .logo { width: 40px; height: 40px; }

@@ -11,7 +11,8 @@ from bottle import request, response, static_file
 
 import editor
 import render
-from common import (APP, GLOSSARY, INCOMING, JOBS, SERVICES, STAGE_LABEL, TASKS_STATE, codex_status, create_job, eta,
+from common import (APP, GLOSSARY, INCOMING, JOBS, SERVICES, STAGE_LABEL, TASKS_STATE, backup, codex_status, create_job, eta,
+                    versions_dir,
                     find_codex, find_job, parse_time, projects_of, set_projects,
                     fmt_time, job_id, list_jobs, load_settings, pending_jobs, read_glossary, read_job,
                     read_json, rename_job_dir, save_settings, spawn_worker, task_key, update_job, worker_pid,
@@ -80,27 +81,6 @@ def summary(d: Path, j: dict) -> dict:
 
 def result_of(d: Path) -> dict:
     return read_json(d / "черновики" / "итог.json")
-
-
-VERSIONS_KEEP = 30
-
-
-def versions_dir(d: Path) -> Path:
-    return d / "черновики" / "версии"
-
-
-def backup(d: Path, what: str) -> None:
-    """Прежний итог — в черновики\\версии; его возвращает «Отменить»."""
-    cur = d / "черновики" / "итог.json"
-    if not cur.exists():
-        return
-    vd = versions_dir(d)
-    vd.mkdir(exist_ok=True)
-    shutil.copy2(cur, vd / f"{time.time_ns()}.json")
-    with (vd / "журнал.txt").open("a", encoding="utf-8") as f:
-        f.write(f"{time.strftime('%d.%m %H:%M')} {what}\n")
-    for old in sorted(vd.glob("*.json"))[:-VERSIONS_KEEP]:
-        old.unlink()
 
 
 def save_result(d: Path, res: dict, relearn: bool = True, what: str = "") -> None:
@@ -1049,6 +1029,19 @@ def codex_login():
         bottle.abort(400, "Codex не установлен")
     open_console([exe, "login"], "Вход в ChatGPT")
     return {"ok": True}
+
+
+@app.get("/api/claude-link")
+def claude_link_get():
+    import claude_link
+    return claude_link.status(load_settings())
+
+
+@app.post("/api/claude-link")
+def claude_link_set():
+    """Подключить Qamyal к Claude Desktop и Claude Code (MCP) или отключить: {"on": false}."""
+    import claude_link
+    return claude_link.connect(load_settings(), on=body().get("on", True) is not False)
 
 
 @app.post("/api/settings")

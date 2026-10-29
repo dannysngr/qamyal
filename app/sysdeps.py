@@ -338,6 +338,21 @@ def machine_info() -> dict:
     return _machine
 
 
+def claude_desktop_configs() -> list:
+    """Файлы настроек Claude Desktop, куда вписывают MCP-серверы. Обычное место — папка Claude
+    (%APPDATA% в Windows, Application Support в macOS); если приложение держит данные в отдельной
+    папке (Claude-Data\\claude_…), настройки там. Пусто — Claude Desktop не установлен."""
+    if IS_WIN:
+        base, other = Path(os.environ.get("APPDATA", "")), Path(os.environ.get("LOCALAPPDATA", ""))
+    elif IS_MAC:
+        base = other = Path.home() / "Library" / "Application Support"
+    else:
+        base = other = Path.home() / ".config"
+    dirs = [base / "Claude"] + sorted((other / "Claude-Data").glob("claude_*"))
+    found = [d / "claude_desktop_config.json" for d in dirs if (d / "claude_desktop_config.json").exists()]
+    return found or ([dirs[0] / "claude_desktop_config.json"] if dirs[0].is_dir() else [])
+
+
 def records_dir(root: Path) -> Path:
     """Где лежат записи: на Mac — в «Документах» (~/Documents/Qamyal), в Windows — рядом с программой."""
     if IS_MAC:
