@@ -275,6 +275,49 @@ function speechNote() {
     <a class="btn sm primary" href="#/settings">${icon('download')}Скачать</a></div>` : '';
 }
 
+/** Вопрос голосом: первое нажатие — слушаем микрофон, второе — GigaAM превращает сказанное в текст. */
+function voiceBtn(btn, input, onText) {
+  const hint = input.placeholder;
+  let on = false, busy = false, poll = null;
+  const look = (cls, ph, title) => {
+    btn.classList.toggle('on', cls === 'on');
+    btn.classList.toggle('wait', cls === 'wait');
+    btn.style.removeProperty('--lv');
+    input.placeholder = ph;
+    btn.title = title;
+  };
+  const stop = async () => {
+    on = false;
+    clearInterval(poll);
+    busy = true;
+    look('wait', 'Распознаю сказанное…', 'Распознаю сказанное…');
+    try {
+      const r = await api('/api/dictate/stop', {});
+      if (r.text) onText(r.text);
+      else toast('Не удалось разобрать вопрос — попробуйте ещё раз', true);
+    } catch (e) { fail(e); }
+    busy = false;
+    look('', hint, 'Спросить голосом');
+  };
+  btn.onclick = async () => {
+    if (busy) return;
+    if (on) return stop();
+    busy = true;
+    try { await api('/api/dictate/start', {}); } catch (e) { busy = false; return fail(e); }
+    busy = false;
+    on = true;
+    look('on', 'Говорите… нажмите на микрофон ещё раз, чтобы закончить', 'Закончить и спросить');
+    poll = setInterval(async () => {
+      try {
+        const s = await api('/api/dictate');
+        if (on) btn.style.setProperty('--lv', s.level);
+        if (on && !s.on) stop();            // микрофон отвалился или вопрос слишком длинный
+      } catch { /* ничего */ }
+    }, 150);
+  };
+  onLeave(() => { if (on) { on = false; clearInterval(poll); api('/api/dictate/stop', {}).catch(() => {}); } });
+}
+
 /* ---------- загрузка файлов (перетаскивание в любое место окна) ---------- */
 
 async function uploadFiles(files) {
@@ -635,6 +678,7 @@ function pageLib() {
       <a class="btn red" href="#/rec">${icon('mic')}Записать</a></div>
     <div class="card" id="ask"><div class="ask-all">
       <input class="input" id="aq" placeholder="Спросите что угодно по всем записям: что решили про сервер? какие задачи на мне?">
+      <button class="btn voice" id="av" title="Спросить голосом">${icon('mic')}</button>
       <button class="btn primary" id="ab">${icon('spark')}Спросить</button></div><div class="qa" id="aqa"></div></div>
     ${speechNote()}
     <div class="projbar" id="pb"></div>
@@ -642,20 +686,25 @@ function pageLib() {
   $('#add').onclick = pickFiles;
   let lastJson = '', titles = {};
 
+  let qaItems = [];
   async function loadQA() {
     try {
       const r = await api('/api/ask-all');
       if (gone()) return;
       titles = r.titles;
-      renderQA(r.qa.slice(-2));
+      qaItems = r.qa.slice(-3);
+      renderQA(qaItems);
     } catch { /* ничего */ }
   }
   function renderQA(items, pending) {
-    $('#aqa').innerHTML = items.map(x => `<div><div class="q">${esc(x.q)}</div><div class="a">${fmtAnswer(x.a, titles)}</div></div>`).join('') +
+    $('#aqa').innerHTML = (items.length && !pending ? `<button class="btn ghost sm qa-clear" id="aclr" title="Очистить историю вопросов — Claude начнёт разговор заново">${icon('trash')}Очистить</button>` : '') +
+      items.map(x => `<div><div class="q">${esc(x.q)}</div><div class="a">${fmtAnswer(x.a, titles)}</div></div>`).join('') +
       (pending ? `<div><div class="q">${esc(pending)}</div><div class="thinking">Читаю все расшифровки и думаю…</div></div>` : '');
+    const clr = $('#aclr');
+    if (clr) clr.onclick = () => api('/api/ask-all/clear', {}).then(() => { qaItems = []; renderQA(qaItems); }).catch(fail);
   }
-  let qaItems = [];
-  const ask = async () => {
+  const ask = async text => {
+    if (text) $('#aq').value = text;
     const q = $('#aq').value.trim();
     if (!q) return;
     $('#aq').value = '';
@@ -668,8 +717,9 @@ function pageLib() {
       renderQA(qaItems);
     } catch (e) { renderQA(qaItems); fail(e); }
   };
-  $('#ab').onclick = ask;
+  $('#ab').onclick = () => ask();
   $('#aq').onkeydown = e => { if (e.key === 'Enter') ask(); };
+  voiceBtn($('#av'), $('#aq'), ask);
   loadQA().then(() => {});
 
   async function load() {
@@ -1125,7 +1175,7 @@ function jobDone(id, data, q) {
       <div class="muted small tip">Спросите о разговоре или скажите, что исправить в расшифровке — правка сразу применится, её можно отменить.</div>
       <div class="suggest">${['Что решили?', 'Что я пообещал сделать?', 'Проверь, правильно ли подписаны участники', 'Что осталось нерешённым?'].map(s => `<button>${s}</button>`).join('')}</div>
       <div class="qa" id="qa"></div>
-      <div style="display:flex;gap:8px;margin-top:10px;align-items:flex-end"><textarea class="input" id="qi" rows="2" placeholder="Например: тут говорят только я и Рафаэль — исправь"></textarea><button class="btn primary" id="qb" title="Отправить (Enter)">${icon('chat')}</button></div></div>
+      <div style="display:flex;gap:8px;margin-top:10px;align-items:flex-end"><textarea class="input" id="qi" rows="2" placeholder="Например: тут говорят только я и Рафаэль — исправь"></textarea><button class="btn voice" id="qv" title="Спросить голосом">${icon('mic')}</button><button class="btn primary" id="qb" title="Отправить (Enter)">${icon('chat')}</button></div></div>
     <div class="card"><h2>Документы по записи</h2><div style="display:grid;gap:8px">
       <button class="btn" data-doc="letter">${icon('mail')}Письмо участникам с итогами</button>
       <button class="btn" data-doc="protocol">${icon('doc')}Протокол встречи</button></div></div>`;
@@ -1166,6 +1216,7 @@ function jobDone(id, data, q) {
     } catch (e) { renderQA(); fail(e); }
   };
   $('#qb').onclick = () => askJob();
+  voiceBtn($('#qv'), $('#qi'), askJob);
   $('#qi').onkeydown = e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); askJob(); } };
   $$('#sc .suggest button').forEach(b => b.onclick = () => askJob(b.textContent));
   $$('#sc [data-doc]').forEach(b => b.onclick = () => openDoc(id, b.dataset.doc, b.textContent.trim()));

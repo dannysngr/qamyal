@@ -17,6 +17,7 @@ from common import (APP, GLOSSARY, INCOMING, JOBS, SERVICES, STAGE_LABEL, TASKS_
                     fmt_time, job_id, list_jobs, load_settings, pending_jobs, read_glossary, read_job,
                     read_json, rename_job_dir, save_settings, spawn_worker, update_job, worker_pid,
                     write_job, write_json, add_project, load_projects, save_projects)
+from dictate import Dictation
 from recorder import Recorder, devices
 from sysdeps import IS_WIN, open_console, open_path
 
@@ -25,6 +26,7 @@ UI_PROFILE = APP / ".ui-profile"       # профиль Chrome для окон �
 bottle.BaseRequest.MEMFILE_MAX = 64 * 1024 * 1024
 app = bottle.Bottle()
 rec = Recorder()
+dictation = Dictation()
 last_ping = [time.time()]
 _cache = {}
 _spawned = [0.0]
@@ -765,6 +767,36 @@ def ask_all_history():
     titles = {job_id(d): (cached_json(d / "черновики" / "итог.json") or {}).get("title", j.get("name"))
               for d, j in list_jobs()}
     return {"qa": read_json(JOBS / ".вопросы.json", [])[-10:], "titles": titles}
+
+
+@app.post("/api/ask-all/clear")
+def ask_all_clear():
+    """Очистить историю вопросов по всем записям — Claude тоже начнёт разговор заново."""
+    write_json(JOBS / ".вопросы.json", [])
+    return {"ok": True}
+
+
+# ---------- вопрос голосом ----------
+
+@app.get("/api/dictate")
+def dictate_status():
+    return dictation.status()
+
+
+@app.post("/api/dictate/<action:re:start|stop>")
+def dictate_action(action):
+    from components import speech_ready
+    try:
+        if action == "start":
+            if not speech_ready():
+                bottle.abort(409, "Для вопроса голосом нужна модель GigaAM — установите её в «Настройках»")
+            dictation.start(load_settings().get("mic_device", ""))
+            return dictation.status()
+        return {"text": dictation.stop()}
+    except bottle.HTTPError:
+        raise
+    except Exception as e:  # noqa: BLE001 — ошибку микрофона показываем в окне
+        bottle.abort(500, str(e))
 
 
 # ---------- задачи ----------

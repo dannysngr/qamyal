@@ -267,6 +267,12 @@ kbd { font: 12px var(--font); border: 1px solid var(--line); border-bottom-width
 :root[data-theme="dark"] .hit mark { background: #6b5a14; }
 .ask-all { display: flex; gap: 8px; }
 .qa { margin-top: 12px; display: grid; gap: 12px; }
+.qa:empty { display: none; }
+.qa-clear { justify-self: end; margin: -4px 0 -14px; color: var(--muted); }
+.btn.voice { padding: 0 10px; }
+.btn.voice.on { background: var(--rec); border-color: var(--rec); color: #fff;
+  box-shadow: 0 0 0 calc(2px + var(--lv, 0) * 8px) var(--rec-soft); transition: box-shadow .12s; }
+.btn.voice.wait svg { animation: blink 1s infinite; }
 .qa .q { font-weight: 600; }
 .qa .a { margin-top: 4px; }
 a.cite { display: inline-block; padding: 0 6px; border-radius: 5px; background: var(--accent-soft); font-size: 12.5px; text-decoration: none; }
