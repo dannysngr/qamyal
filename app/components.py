@@ -7,6 +7,7 @@
 import importlib.util
 import os
 import signal
+import ssl
 import subprocess
 import sys
 import time
@@ -19,7 +20,10 @@ from sysdeps import IS_WIN, find_program, gui_python, machine_info, open_console
 
 STATUS_DIR = JOBS / ".downloads"            # ход каждой загрузки — своим файлом: качать можно всё сразу
 GIGAAM_URL = "https://cdn.chatwm.opensmodel.sberdevices.ru/GigaAM"
-GIGAAM_MD5 = "2730de7545ac43ad256485a462b0a27a"          # v3_e2e_rnnt, как в gigaam._MODEL_HASHES
+# SHA-256 файлов v3_e2e_rnnt (ckpt совпадает с MD5 из gigaam._MODEL_HASHES, токенизатор — с ai-sage/GigaAM-v3
+# на Hugging Face): подлинность проверяем по ним, даже если сертификат сервера пришлось пропустить
+GIGAAM_SHA256 = {"v3_e2e_rnnt.ckpt": "f60c62fe45902d967000770a12f260de7c5ac4d4b8e5e852f1df8c548e3958b5",
+                 "v3_e2e_rnnt_tokenizer.model": "828c12c991019eef952a960661f25a92d6ad279591e2ea466b4aeddf1d20a18a"}
 SHERPA = "https://github.com/k2-fsa/sherpa-onnx/releases/download"
 SPEECH_MODULES = ["torch", "torchaudio", "gigaam", "faster_whisper", "sherpa_onnx", "sentencepiece"]
 
@@ -357,13 +361,13 @@ class Job:
         self.save()
 
 
-def _head_size(url: str) -> int:
+def _head_size(url: str, ctx=None) -> int:
     req = urllib.request.Request(url, method="HEAD")
-    with urllib.request.urlopen(req, timeout=30) as r:
+    with urllib.request.urlopen(req, timeout=30, context=ctx) as r:
         return int(r.headers.get("Content-Length") or 0)
 
 
-def fetch(job: Job, url: str, dest: Path, size: int = 0) -> None:
+def fetch(job: Job, url: str, dest: Path, size: int = 0, ctx=None) -> None:
     """Скачать файл с докачкой (.part остаётся при обрыве и продолжается при следующем запуске)."""
     if dest.exists():
         job.st["done"] += size or dest.stat().st_size
@@ -375,7 +379,7 @@ def fetch(job: Job, url: str, dest: Path, size: int = 0) -> None:
         have = part.stat().st_size if part.exists() else 0
         req = urllib.request.Request(url, headers={"Range": f"bytes={have}-"} if have else {})
         try:
-            with urllib.request.urlopen(req, timeout=60) as r:
+            with urllib.request.urlopen(req, timeout=60, context=ctx) as r:
                 if have and r.status != 206:      # сервер не умеет докачку — начинаем файл заново
                     have = 0
                 with part.open("ab" if have else "wb") as f:
@@ -397,10 +401,32 @@ def fetch(job: Job, url: str, dest: Path, size: int = 0) -> None:
                 return
             if attempt == 7:
                 raise
-        except OSError:
-            if attempt == 7:
-                raise
+        except OSError as e:
+            if attempt == 7 or isinstance(getattr(e, "reason", e), ssl.SSLCertVerificationError):
+                raise                             # сертификат повтором не починится
         time.sleep(min(30, 3 * attempt))
+
+
+def _sber_context():
+    """None, если у сервера моделей Сбера сертификат в порядке. Если нет (с 04.11.2026 он был просрочен) —
+    контекст без проверки сертификата: файлы GigaAM после загрузки всё равно сверяются по SHA-256."""
+    try:
+        urllib.request.urlopen(urllib.request.Request(f"{GIGAAM_URL}/v3_e2e_rnnt_tokenizer.model", method="HEAD"),
+                               timeout=30).close()
+        return None
+    except urllib.error.URLError as e:
+        if isinstance(e.reason, ssl.SSLCertVerificationError):
+            return ssl._create_unverified_context()
+        raise
+
+
+def _check_gigaam(f: Path) -> None:
+    import hashlib
+    with f.open("rb") as h:
+        ok = hashlib.file_digest(h, "sha256").hexdigest() == GIGAAM_SHA256[f.name]
+    if not ok:
+        f.unlink()
+        raise RuntimeError("Модель GigaAM скачалась с ошибкой. Нажмите «Скачать» ещё раз.")
 
 
 def pip_install(args: list) -> None:
@@ -416,7 +442,6 @@ def pip_install(args: list) -> None:
 
 
 def install_speech(job: Job) -> None:
-    import hashlib
     import tarfile
     if not _has_modules():
         job.step("Библиотеки распознавания (≈ 230 МБ)")
@@ -428,15 +453,14 @@ def install_speech(job: Job) -> None:
             raise RuntimeError("Нет исходников GigaAM — переустановите Qamyal")
         pip_install([str(src)])
     ckpt, tok = _gigaam_files()
+    ctx = None if ckpt.exists() and tok.exists() else _sber_context()
     if not ckpt.exists():
-        job.step("Модель GigaAM", _head_size(f"{GIGAAM_URL}/{ckpt.name}"))
-        fetch(job, f"{GIGAAM_URL}/{ckpt.name}", ckpt)
-        with ckpt.open("rb") as f:
-            md5 = hashlib.file_digest(f, "md5").hexdigest()
-        if md5 != GIGAAM_MD5:
-            ckpt.unlink()
-            raise RuntimeError("Модель GigaAM скачалась с ошибкой. Нажмите «Скачать» ещё раз.")
-    fetch(job, f"{GIGAAM_URL}/{tok.name}", tok)
+        job.step("Модель GigaAM", _head_size(f"{GIGAAM_URL}/{ckpt.name}", ctx))
+        fetch(job, f"{GIGAAM_URL}/{ckpt.name}", ckpt, ctx=ctx)
+        _check_gigaam(ckpt)
+    if not tok.exists():
+        fetch(job, f"{GIGAAM_URL}/{tok.name}", tok, ctx=ctx)
+        _check_gigaam(tok)
     seg, emb = _diar_files()
     job.step("Разметка голосов", 33_000_000)
     if not seg.exists():
