@@ -186,6 +186,14 @@ function fmtAnswer(text, titles) {
   return h.replace(/\n/g, '<br>');
 }
 
+/** Вопросы и ответы: последний раскрыт, прежние свёрнуты в строку с вопросом — открываются по клику.
+ *  pending — вопрос ещё думается: тогда свёрнуты все готовые. answer(x, k) — HTML ответа. */
+function qaList(items, answer, pending) {
+  return items.map((x, k) => k === items.length - 1 && !pending
+    ? `<div class="qa-item"><div class="q">${esc(x.q)}</div>${answer(x, k)}</div>`
+    : `<details class="qa-item"><summary class="q">${esc(x.q)}</summary>${answer(x, k)}</details>`).join('');
+}
+
 function highlight(raw, words) {
   if (!words.length) return esc(raw);
   const re = new RegExp('(' + words.map(w => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|') + ')', 'gi');
@@ -800,7 +808,7 @@ function pageLib() {
   }
   function renderQA(items, pending) {
     $('#aqa').innerHTML = (items.length && !pending ? `<button class="btn ghost sm qa-clear" id="aclr" title="Очистить историю вопросов — Claude начнёт разговор заново">${icon('trash')}Очистить</button>` : '') +
-      items.map(x => `<div><div class="q">${esc(x.q)}</div><div class="a">${fmtAnswer(x.a, titles)}</div></div>`).join('') +
+      qaList(items, x => `<div class="a">${fmtAnswer(x.a, titles)}</div>`, pending) +
       (pending ? `<div><div class="q">${esc(pending)}</div><div class="thinking">Читаю все расшифровки и думаю…</div></div>` : '');
     const clr = $('#aclr');
     if (clr) clr.onclick = () => api('/api/ask-all/clear', {}).then(() => { qaItems = []; renderQA(qaItems); }).catch(fail);
@@ -1316,8 +1324,8 @@ function jobDone(id, data, q) {
 
   const qa = (data.qa || []).slice(-6);
   const renderQA = pending => {
-    $('#qa').innerHTML = qa.map((x, k) => `<div><div class="q">${esc(x.q)}</div><div class="a">${fmtAnswer(x.a)}</div>
-        ${x.changed ? `<div class="fixed">${icon('check')} исправлено: ${x.changed}${k === qa.length - 1 && data.versions ? ` · <a href="#" class="undo2">отменить</a>` : ''}</div>` : ''}</div>`).join('') +
+    $('#qa').innerHTML = qaList(qa, (x, k) => `<div class="a">${fmtAnswer(x.a)}</div>
+        ${x.changed ? `<div class="fixed">${icon('check')} исправлено: ${x.changed}${k === qa.length - 1 && data.versions ? ` · <a href="#" class="undo2">отменить</a>` : ''}</div>` : ''}`, pending) +
       (pending ? `<div><div class="q">${esc(pending)}</div><div class="thinking">Читаю расшифровку… если нужно исправить — исправляю и обновляю краткое содержание (до пары минут)</div></div>` : '');
     $$('#qa .undo2').forEach(a => a.onclick = e => { e.preventDefault(); undoLast(); });
   };

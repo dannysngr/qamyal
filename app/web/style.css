@@ -282,6 +282,12 @@ kbd { font: 12px var(--font); border: 1px solid var(--line); border-bottom-width
   box-shadow: 0 0 0 calc(2px + var(--lv, 0) * 8px) var(--rec-soft); transition: box-shadow .12s; }
 .btn.voice.wait svg { animation: blink 1s infinite; }
 .qa .q { font-weight: 600; }
+/* прежние ответы свёрнуты: видно только вопрос, ответ — по клику */
+.qa details > summary { cursor: pointer; color: var(--muted); list-style: none; }
+.qa details > summary::-webkit-details-marker { display: none; }
+.qa details > summary::before { content: '▸'; display: inline-block; width: 1.1em; }
+.qa details[open] > summary { color: inherit; }
+.qa details[open] > summary::before { content: '▾'; }
 .qa .a { margin-top: 4px; }
 a.cite { display: inline-block; padding: 0 6px; border-radius: 5px; background: var(--accent-soft); font-size: 12.5px; text-decoration: none; }
 
