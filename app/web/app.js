@@ -104,6 +104,47 @@ async function api(path, data, method) {
   return j;
 }
 
+/** Запись упала на редактуре, потому что Claude не вошёл (то же, что claude_auth.is_auth_error). */
+const claudeAuthErr = e => /^claude.*(authenticate|oauth|\/login|not logged in)/i.test(e || '');
+
+/** Вход в Claude Code: браузер со страницей входа открывает сама программа claude, здесь — ход и поле для кода. */
+async function claudeLogin() {
+  try { await api('/api/claude/login/start', {}); } catch (e) { return fail(e); }
+  const m = modal(`<h2>Вход в Claude</h2>
+    <ol class="ext-steps">
+      <li>В браузере открылась страница Claude. Войдите в аккаунт с подпиской Pro или Max и нажмите <b>«Authorize»</b>.</li>
+      <li>Если страница показала код — скопируйте его и вставьте сюда:
+        <div style="display:flex;gap:8px;margin-top:8px"><input id="cl-code" placeholder="Код со страницы входа" style="flex:1" autocomplete="off">
+          <button class="btn primary" id="cl-send">Готово</button></div></li>
+    </ol>
+    <p class="muted small" id="cl-link"></p>
+    <p class="muted" id="cl-st">Жду, пока вы войдёте…</p>
+    <div style="text-align:right"><button class="btn" id="cl-cancel">Отмена</button></div>`, true);
+  $('#cl-cancel', m).onclick = () => { api('/api/claude/login/cancel', {}).catch(() => {}); m.remove(); };
+  $('#cl-send', m).onclick = () => api('/api/claude/login/code', { code: $('#cl-code', m).value })
+    .then(() => { $('#cl-st', m).textContent = 'Проверяю код…'; }).catch(fail);
+  const tick = async () => {
+    if (!m.isConnected) return;
+    let st;
+    try { st = await api('/api/claude/login'); } catch { setTimeout(tick, 1500); return; }
+    if (st.url) $('#cl-link', m).innerHTML = `Браузер не открылся? <a href="${esc(st.url)}" target="_blank" rel="noopener">Открыть страницу входа</a>`;
+    if (st.logged_in) {
+      m.remove();
+      toast('Claude подключён' + (st.requeued ? ` · ${st.requeued} ${plural(st.requeued, 'запись', 'записи', 'записей')} снова в очереди` : ''));
+      pollState();
+      if (location.hash.startsWith('#/settings') || location.hash.startsWith('#/lib') || location.hash.startsWith('#/job')) route();
+      return;
+    }
+    if (!st.running && st.error) {
+      $('#cl-st', m).innerHTML = `<span style="color:var(--rec)">${esc(st.error)}</span> <button class="btn sm" id="cl-again">Ещё раз</button>`;
+      $('#cl-again', m).onclick = () => { m.remove(); claudeLogin(); };
+      return;
+    }
+    setTimeout(tick, 1500);
+  };
+  tick();
+}
+
 function toast(msg, err) {
   const t = document.createElement('div');
   t.className = 'toast' + (err ? ' err' : '');
@@ -249,6 +290,10 @@ function renderSide() {
       (dl.more ? `<div style="margin-top:6px">${plural(dl.more, 'и ещё {n} загрузка', 'и ещё {n} загрузки', 'и ещё {n} загрузок').replace('{n}', dl.more)}</div>` : '');
     box.classList.add('clickable');
     box.onclick = () => { location.hash = '#/settings'; };
+  } else if (ST.claude && ST.claude.installed && !ST.claude.logged_in) {
+    box.innerHTML = '<b>Claude: нужен вход</b><br>Без него нет краткого содержания и задач. Нажмите, чтобы войти';
+    box.classList.add('clickable');
+    box.onclick = claudeLogin;
   } else if (ST.work.length && ST.speech === false) {
     box.innerHTML = `<b>${ST.work.length} ${plural(ST.work.length, 'запись ждёт', 'записи ждут', 'записей ждут')} расшифровки</b><br>Скачайте распознавание речи в Настройках`;
     box.classList.add('clickable');
@@ -829,7 +874,8 @@ function pageLib() {
       h += `<div class="section-title">Не получилось</div><div class="grid">` + errs.map(j => `
         <div class="card" data-go="#/job/${j.id}"><div style="font-weight:600">${esc(j.name)}</div>
           <div class="note err small" style="margin:8px 0">${esc(j.error)}</div>
-          <button class="btn sm" data-retry="${j.id}">${icon('refresh')}Повторить</button></div>`).join('') + '</div>';
+          ${claudeAuthErr(j.error) ? `<button class="btn sm primary" data-claude-login>${icon('spark')}Войти в Claude</button>`
+            : `<button class="btn sm" data-retry="${j.id}">${icon('refresh')}Повторить</button>`}</div>`).join('') + '</div>';
     }
     if (done.length) {
       h += `<div class="section-title">Готово · ${done.length}</div><div class="grid">` + done.map(j => `
@@ -842,6 +888,7 @@ function pageLib() {
     }
     $('#lb').innerHTML = h;
     $$('[data-retry]').forEach(b => b.onclick = () => api(`/api/job/${b.dataset.retry}/retry`, {}).then(() => { lastJson = ''; load(); }).catch(fail));
+    $$('[data-claude-login]').forEach(b => b.onclick = claudeLogin);
   }
 
   let timer = null;
@@ -901,7 +948,9 @@ function jobProgress(id, data) {
         <div style="flex:1"><div class="title">${esc(j.name)}</div><div class="meta">${esc(j.date)}${j.duration ? ' · ' + fmtDur(j.duration) : ''}</div></div>
         <button class="btn sm danger" id="del">${icon('trash')}Удалить</button></div>
       <div class="card progress-card">
-        ${j.status === 'error' ? `<div class="note err"><b>Не получилось:</b> ${esc(j.error)}</div><div><button class="btn primary" id="retry">${icon('refresh')}Повторить</button></div>`
+        ${j.status === 'error' ? `<div class="note err"><b>Не получилось:</b> ${esc(j.error)}</div><div>${claudeAuthErr(j.error)
+            ? `<button class="btn primary" id="cl-login">${icon('spark')}Войти в Claude</button> <span class="muted small">после входа запись сама продолжится</span>`
+            : `<button class="btn primary" id="retry">${icon('refresh')}Повторить</button>`}</div>`
           : `<h2 style="margin:0">${j.status === 'queued' ? 'Ждёт очереди' : esc(j.stage_label) + ' · ' + j.progress + '%'}</h2>
              <div class="bar"><i style="width:${j.status === 'working' ? j.progress : 0}%"></i></div>
              <div class="muted">${j.paused ? 'Пауза: процессор занят живой расшифровкой. ' : ''}${j.eta > 60 ? 'Осталось примерно ' + fmtDur(j.eta) + '.' : ''}
@@ -912,6 +961,7 @@ function jobProgress(id, data) {
         ${d.live.map(s => `<div class="live-line"><span class="t">${fmtT(s.t)}</span><span>${esc(s.text)}</span></div>`).join('')}</div>` : ''}
     </div>`;
     if ($('#retry')) $('#retry').onclick = () => api(`/api/job/${id}/retry`, {}).then(() => toast('Снова в очереди')).catch(fail);
+    if ($('#cl-login')) $('#cl-login').onclick = claudeLogin;
     $('#del').onclick = () => { if (confirm('Удалить эту запись?')) api(`/api/job/${id}/delete`, {}).then(() => { location.hash = '#/lib'; }).catch(fail); };
   };
   render(data);
@@ -1914,7 +1964,8 @@ function drawComps(gone) {
     const row = x => {
       let right = '';
       if (x.variants) right = '';
-      else if (x.ready) right = `<span class="ok">${icon('check')}Установлено</span>`;
+      else if (x.id === 'claude' && x.ready && x.login && !x.login.logged_in) right = `<button class="btn sm primary" data-login="1">${icon('spark')}Войти</button>`;
+      else if (x.ready) right = `<span class="ok">${icon('check')}${x.id === 'claude' ? 'Подключено' : 'Установлено'}</span>`;
       else if (running(x.id)) right = progress(jobOf(x.id), `data-stop="${x.id}"`);
       else if (x.id === 'claude' || x.id === 'codex') right = `<button class="btn sm" data-get="${x.id}">${icon('spark')}Установить</button>`;
       else if (x.id === 'browser') right = `<button class="btn sm primary" data-ext="1">${icon('screen')}Установить</button>`;
@@ -1935,7 +1986,7 @@ function drawComps(gone) {
       try { await api(path, data); if (after) after(); last = ''; load(); } catch (e) { b.disabled = false; fail(e); }
     };
     $$('#comps [data-get]').forEach(b => b.onclick = () => act(b, '/api/components/' + b.dataset.get, { model: b.dataset.model || '' },
-      b.dataset.get === 'claude' ? () => toast('Откроется Терминал: установка Claude Code, затем вход в ваш аккаунт Claude')
+      b.dataset.get === 'claude' ? () => toast('Ставлю Claude Code — когда закончится, нажмите «Войти»')
         : b.dataset.get === 'codex' ? () => toast('Откроется Терминал: установка Codex, затем вход в ваш аккаунт ChatGPT') : null));
     // Chrome не даёт другим программам открыть chrome://extensions (вместо неё — пустое окно),
     // поэтому только шаги и кнопки «Копировать»
@@ -1956,6 +2007,7 @@ function drawComps(gone) {
       $$('[data-copy]', m).forEach(x => x.onclick = () => navigator.clipboard.writeText(x.dataset.copy).then(() => toast('Скопировано')));
       $('#extok', m).onclick = () => m.remove();
     });
+    $$('#comps [data-login]').forEach(b => b.onclick = claudeLogin);
     $$('#comps [data-stop]').forEach(b => b.onclick = () => act(b, '/api/components/' + b.dataset.stop + '/cancel', { model: b.dataset.model || '' }));
     $$('#comps [data-use]').forEach(b => b.onclick = () => act(b, '/api/components/whisper/use', { model: b.dataset.use },
       () => toast('Whisper ' + b.dataset.use + ' — для следующих записей')));

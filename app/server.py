@@ -154,6 +154,7 @@ def state():
     jobs = list_jobs()
     work = [summary(d, j) for d, j in jobs if j.get("status") in ("queued", "working")]
     work.sort(key=lambda x: (x["status"] != "working", x["ts"]))
+    import claude_auth
     import components
     st = rec.status()
     st.pop("live_segments", None)
@@ -173,7 +174,46 @@ def state():
             "errors": sum(1 for _, j in jobs if j.get("status") == "error"),
             "user": s["user_name"], "editor": s["editor"], "theme": s.get("theme", "system"),
             "lang": s.get("lang", "ru"), "speech": components.speech_ready(),
+            "claude": claude_auth.status() if s["editor"] == "claude" else None,
             "download": {**dl[0], "more": len(dl) - 1} if dl else None}
+
+
+# ---------- вход в Claude Code (без Терминала) ----------
+
+def requeue_claude_errors() -> int:
+    """Записи, которые не прошли редактуру из-за входа в Claude, — снова в очередь."""
+    import claude_auth
+    n = 0
+    for d, j in list_jobs():
+        if j.get("status") == "error" and claude_auth.is_auth_error(j.get("error", "")):
+            update_job(d, status="queued", error="", attempts={})
+            n += 1
+    if n:
+        ensure_worker()
+    return n
+
+
+@app.get("/api/claude/login")
+def claude_login_state():
+    import claude_auth
+    st = claude_auth.login_state()
+    st["requeued"] = requeue_claude_errors() if st["logged_in"] else 0
+    return st
+
+
+@app.post("/api/claude/login/<action:re:start|code|cancel>")
+def claude_login(action):
+    import claude_auth
+    try:
+        if action == "start":
+            claude_auth.start_login()
+        elif action == "code":
+            claude_auth.send_code(str(body().get("code", "")))
+        else:
+            claude_auth.cancel_login()
+    except RuntimeError as e:
+        bottle.abort(409, str(e))
+    return claude_auth.login_state()
 
 
 # ---------- о программе ----------
@@ -258,7 +298,7 @@ def components_start(cid):
     return components.status()
 
 
-@app.post("/api/components/<cid:re:speech|whisper>/cancel")
+@app.post("/api/components/<cid:re:speech|whisper|claude>/cancel")
 def components_cancel(cid):
     import components
     try:

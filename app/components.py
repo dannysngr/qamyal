@@ -219,6 +219,8 @@ def status() -> dict:
                                     for k, m in WHISPER_MODELS.items()]
     by_id["whisper"]["advice"] = {"key": advice, "why": why, "machine": machine}
     by_id["browser"]["folder"] = str(EXTENSION)
+    import claude_auth
+    by_id["claude"]["login"] = claude_auth.status()
     return {"items": items, "jobs": all_jobs}
 
 
@@ -268,15 +270,7 @@ def start(cid: str, model: str = "") -> None:
     if cid == "claude":
         s = load_settings()
         s["claude_pending"] = True            # когда Claude появится, итог начнёт делать он
-        save_settings(s)
-        if IS_WIN:
-            open_console(["powershell", "-NoProfile", "-Command",
-                          "irm https://claude.ai/install.ps1 | iex; & $env:USERPROFILE\\.local\\bin\\claude.exe"],
-                         "Установка Claude Code")
-        else:
-            open_console(["/bin/bash", "-c", "curl -fsSL https://claude.ai/install.sh | bash && ~/.local/bin/claude"],
-                         "Установка Claude Code")
-        return
+        save_settings(s)                      # ставится в фоне, как модели; войти — кнопкой «Войти» в окне
     if cid == "codex":                            # официальный установщик OpenAI, затем вход в ChatGPT
         s = load_settings()
         s["codex_pending"] = True                 # появится, а Claude Code нет, — итог начнёт делать Codex
@@ -472,6 +466,18 @@ def install_speech(job: Job) -> None:
     fetch(job, f"{SHERPA}/speaker-recongition-models/{emb.name}", emb)
 
 
+def install_claude(job: Job) -> None:
+    """Официальный установщик Anthropic, без Терминала; вход потом — из окна (claude_auth)."""
+    job.step("Claude Code")
+    cmd = (["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", "irm https://claude.ai/install.ps1 | iex"]
+           if IS_WIN else ["/bin/bash", "-c", "curl -fsSL https://claude.ai/install.sh | bash"])
+    r = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace",
+                       **({"creationflags": 0x08000000} if IS_WIN else {}))
+    if r.returncode or not find_claude(load_settings()):
+        tail = (r.stderr or r.stdout).strip().splitlines()[-2:]
+        raise RuntimeError("Claude Code не установился: " + (" ".join(tail) or f"код {r.returncode}"))
+
+
 def install_whisper(job: Job) -> None:
     key = job.model
     m = WHISPER_MODELS[key]
@@ -494,7 +500,7 @@ def main(cid: str, model: str = "") -> None:
         pass
     job = Job(cid, model)
     try:
-        {"speech": install_speech, "whisper": install_whisper}[cid](job)
+        {"speech": install_speech, "whisper": install_whisper, "claude": install_claude}[cid](job)
         job.st.update(state="done", step="", error="")
     except Exception as e:  # noqa: BLE001 — показываем в окне
         job.st.update(state="error", error=str(e)[:400] or e.__class__.__name__)
