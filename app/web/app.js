@@ -329,8 +329,19 @@ function speechNote() {
     <a class="btn sm primary" href="#/settings">${icon('download')}Скачать</a></div>` : '';
 }
 
-/** Вопрос голосом: первое нажатие — слушаем микрофон, второе — GigaAM превращает сказанное в текст. */
-function voiceBtn(btn, input, onText) {
+/** Вопрос голосом: первое нажатие — слушаем микрофон, второе — GigaAM превращает сказанное в текст.
+ *  Текст только вставляется в поле — отправляет человек сам, когда допишет (Enter или кнопка). */
+function voiceBtn(btn, input) {
+  const onText = text => {
+    const v = input.value, a = input.selectionStart ?? v.length, b = input.selectionEnd ?? v.length;
+    const pre = v.slice(0, a), post = v.slice(b);
+    const ins = (pre && !/\s$/.test(pre) ? ' ' : '') + text + (post && !/^\s/.test(post) ? ' ' : '');
+    input.value = pre + ins + post;
+    input.focus();
+    const pos = (pre + ins).length;
+    input.setSelectionRange(pos, pos);
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+  };
   const hint = input.placeholder;
   let on = false, busy = false, poll = null;
   const look = (cls, ph, title) => {
@@ -360,7 +371,7 @@ function voiceBtn(btn, input, onText) {
     try { await api('/api/dictate/start', {}); } catch (e) { busy = false; return fail(e); }
     busy = false;
     on = true;
-    look('on', 'Говорите… нажмите на микрофон ещё раз, чтобы закончить', 'Закончить и спросить');
+    look('on', 'Говорите… нажмите на микрофон ещё раз, чтобы закончить', 'Закончить — текст появится в поле');
     poll = setInterval(async () => {
       try {
         const s = await api('/api/dictate');
@@ -829,7 +840,7 @@ function pageLib() {
   };
   $('#ab').onclick = () => ask();
   $('#aq').onkeydown = e => { if (e.key === 'Enter') ask(); };
-  voiceBtn($('#av'), $('#aq'), ask);
+  voiceBtn($('#av'), $('#aq'));
   loadQA().then(() => {});
 
   async function load() {
@@ -1342,7 +1353,7 @@ function jobDone(id, data, q) {
     } catch (e) { renderQA(); fail(e); }
   };
   $('#qb').onclick = () => askJob();
-  voiceBtn($('#qv'), $('#qi'), askJob);
+  voiceBtn($('#qv'), $('#qi'));
   $('#qi').onkeydown = e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); askJob(); } };
   $$('#sc .suggest button').forEach(b => b.onclick = () => askJob(b.textContent));
   $$('#sc [data-doc]').forEach(b => b.onclick = () => openDoc(id, b.dataset.doc, b.textContent.trim()));

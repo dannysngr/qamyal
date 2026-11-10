@@ -169,7 +169,7 @@ const I18N_ROWS = [
   ['Читаю все расшифровки и думаю…', 'Reading all transcripts and thinking…', 'Массо расшифровкаш йоьшуш, ойла еш…'],
   ['Спросить голосом', 'Ask by voice', 'Аьзнаца хатта'],
   ['Говорите… нажмите на микрофон ещё раз, чтобы закончить', 'Speak… click the microphone again to finish', 'Дийца… чекхдаккха микрофон тӀе юха тӀетаӀае'],
-  ['Закончить и спросить', 'Finish and ask', 'Чекхдаккха а, хатта а'],
+  ['Закончить — текст появится в поле', 'Finish — the text will appear in the box', 'Чекхдаккха — йоза меттиган чу гӀур ду'],
   ['Распознаю сказанное…', 'Recognizing what you said…', 'Аларг девзаш ду…'],
   ['Не удалось разобрать вопрос — попробуйте ещё раз', "Couldn't make out the question — please try again", 'Хаттар ца кхеташ — юха а хьажа'],
   ['Для вопроса голосом нужна модель GigaAM — установите её в «Настройках»', 'Asking by voice needs the GigaAM model — install it in Settings', 'Аьзнаца хатта GigaAM модель еза — «Нисдарш» чохь хӀоттае'],
