@@ -258,6 +258,16 @@ def components_start(cid):
     return components.status()
 
 
+@app.post("/api/components/<cid:re:speech|whisper>/cancel")
+def components_cancel(cid):
+    import components
+    try:
+        components.cancel(cid, str(body().get("model", "")))
+    except RuntimeError as e:
+        bottle.abort(409, str(e))
+    return components.status()
+
+
 @app.post("/api/components/whisper/<action:re:use|delete>")
 def whisper_variant(action):
     """Выбрать скачанный вариант Whisper или удалить ненужный."""

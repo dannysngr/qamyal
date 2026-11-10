@@ -1882,10 +1882,11 @@ function drawComps(gone) {
     if (wh) { wh.disabled = !ready.whisper; wh.closest('div').querySelector('.help').textContent = ready.whisper ? 'Лучше английские слова и имена. Без него обработка почти вдвое быстрее.' : 'Whisper не скачан — его можно скачать выше.'; }
     const box = $('#comps');
     box.hidden = false;
-    const progress = job => {
+    const progress = (job, stop) => {
       const pct = job.total ? Math.min(100, Math.round(job.done * 100 / job.total)) : 0;
       return `<div class="dl"><div class="small">${esc(job.step || 'Начинаю…')}${job.total ? ` · ${mb(job.done)} из ${mb(job.total)} МБ` : ''}</div>
-        <div class="bar${job.total ? '' : ' busy'}"><i style="width:${job.total ? pct : 100}%"></i></div></div>`;
+        <div class="bar${job.total ? '' : ' busy'}"><i style="width:${job.total ? pct : 100}%"></i></div>
+        <button class="btn sm ghost" style="margin-top:6px" ${stop}>${icon('stop')}Остановить</button></div>`;
     };
     // «Скачать» — стрелка вниз (к себе на компьютер), под кнопкой — сколько скачается
     const getBtn = (attrs, resume, size) =>
@@ -1895,7 +1896,7 @@ function drawComps(gone) {
     const errLine = (id, model) => failed(id, model) ? `<div class="help err" style="color:var(--rec)">${esc(jobOf(id, model).error)}</div>` : '';
     const variant = v => {
       let right;
-      if (running('whisper', v.key)) right = progress(jobOf('whisper', v.key));
+      if (running('whisper', v.key)) right = progress(jobOf('whisper', v.key), `data-stop="whisper" data-model="${v.key}"`);
       else if (v.active && v.downloaded) right = `<span class="ok">${icon('check')}Установлено</span>`;
       else if (v.downloaded) right = `<button class="btn sm" data-use="${v.key}">Использовать</button>` +
         (v.deletable ? ` <button class="btn sm ghost danger" data-del="${v.key}" title="Удалить с компьютера">${icon('trash')}Удалить</button>` : '');
@@ -1914,7 +1915,7 @@ function drawComps(gone) {
       let right = '';
       if (x.variants) right = '';
       else if (x.ready) right = `<span class="ok">${icon('check')}Установлено</span>`;
-      else if (running(x.id)) right = progress(jobOf(x.id));
+      else if (running(x.id)) right = progress(jobOf(x.id), `data-stop="${x.id}"`);
       else if (x.id === 'claude' || x.id === 'codex') right = `<button class="btn sm" data-get="${x.id}">${icon('spark')}Установить</button>`;
       else if (x.id === 'browser') right = `<button class="btn sm primary" data-ext="1">${icon('screen')}Установить</button>`;
       else right = getBtn(`data-get="${x.id}"`, failed(x.id), x.size);
@@ -1955,6 +1956,7 @@ function drawComps(gone) {
       $$('[data-copy]', m).forEach(x => x.onclick = () => navigator.clipboard.writeText(x.dataset.copy).then(() => toast('Скопировано')));
       $('#extok', m).onclick = () => m.remove();
     });
+    $$('#comps [data-stop]').forEach(b => b.onclick = () => act(b, '/api/components/' + b.dataset.stop + '/cancel', { model: b.dataset.model || '' }));
     $$('#comps [data-use]').forEach(b => b.onclick = () => act(b, '/api/components/whisper/use', { model: b.dataset.use },
       () => toast('Whisper ' + b.dataset.use + ' — для следующих записей')));
     $$('#comps [data-del]').forEach(b => b.onclick = () => {

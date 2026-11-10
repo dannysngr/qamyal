@@ -6,6 +6,8 @@
 Оборванная загрузка продолжается с того же места."""
 import importlib.util
 import os
+import signal
+import subprocess
 import sys
 import time
 import urllib.error
@@ -291,6 +293,31 @@ def start(cid: str, model: str = "") -> None:
                {"id": cid, "model": model, "state": "running", "pid": 0, "step": "", "done": 0, "total": 0,
                 "at": time.time()})
     spawn_detached([gui_python(), str(Path(__file__).resolve()), cid, model], ROOT / "app")
+
+
+def cancel(cid: str, model: str = "") -> None:
+    """Остановить загрузку. Скачанная часть (.part) остаётся: «Продолжить» докачает с того же места."""
+    path = STATUS_DIR / f"{job_key(cid, model)}.json"
+    st = read_json(path, {}) or {}
+    if st.get("state") != "running":
+        raise RuntimeError("Это уже не скачивается")
+    pid = st.get("pid")
+    if not pid:
+        raise RuntimeError("Загрузка ещё запускается — остановите через пару секунд")
+    if pid_alive(pid):
+        if IS_WIN:
+            subprocess.run(["taskkill", "/PID", str(pid), "/T", "/F"], capture_output=True, creationflags=0x08000000)
+        else:
+            os.killpg(pid, signal.SIGTERM)          # своя группа (start_new_session) — вместе с pip/uv
+            for _ in range(40):                      # процесс — наш потомок: забираем, иначе зомби «жив» для pid_alive
+                try:
+                    if os.waitpid(pid, os.WNOHANG)[0]:
+                        break
+                except ChildProcessError:
+                    break
+                time.sleep(0.05)
+    st.update(state="error", error="Загрузка остановлена. «Продолжить» докачает с того же места.")
+    write_json(path, st)
 
 
 def claude_appeared(s: dict) -> bool:
