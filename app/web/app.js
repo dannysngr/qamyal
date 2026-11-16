@@ -1870,6 +1870,9 @@ async function drawUpdate(gone) {
   if (gone() || !u.supported) return;
   markUpdate(u);
   const box = $('#upd');
+  const run = await api('/api/update/run').catch(() => ({}));
+  if (gone()) return;
+  if (['start', 'download', 'install', 'restart'].includes(run.step) && run.ago < 300) return updateProgress(box, gone);
   if (!u.available) {
     box.innerHTML = `<div class="muted small upd-ok">${icon('check')}Установлена последняя версия Qamyal</div>`;
     return;
@@ -1879,9 +1882,48 @@ async function drawUpdate(gone) {
     <button class="btn primary" id="updgo">${icon('download')}Обновить</button></div>`;
   $('#updgo').onclick = async () => {
     try { await api('/api/update', {}); } catch (e) { return fail(e); }
-    box.innerHTML = `<div class="card upd">${icon('refresh')}<div class="grow"><b>Скачиваю и ставлю новую версию…</b>
-      <div class="muted small">Qamyal закроется и откроется сам примерно через минуту.</div></div></div>`;
+    updateProgress(box, gone);
   };
+}
+
+/** Ход обновления: что делается сейчас, полоска, ошибка с «Повторить». Шаги пишет mac/update.sh. */
+function updateProgress(box, gone) {
+  const STEPS = { start: [5, 'Начинаю обновление…'], download: [25, 'Скачиваю новую версию…'],
+    install: [60, 'Ставлю новую версию…'], restart: [90, 'Перезапускаю Qamyal…'], done: [100, 'Готово, открываю новую версию…'] };
+  const t0 = Date.now();
+  let last = 'start';
+  const draw = r => {
+    if (gone()) return false;
+    if (r && r.step === 'error') {
+      box.innerHTML = `<div class="card upd">${icon('info')}<div class="grow"><b>Обновить не получилось</b>
+        <div class="small" style="color:var(--rec)">${esc(r.error || '')}</div>
+        <div class="muted small">Подробности — в файле <code translate="no">~/Qamyal/update.log</code></div></div>
+        <button class="btn primary" id="updgo">${icon('refresh')}Повторить</button></div>`;
+      $('#updgo').onclick = async () => {
+        try { await api('/api/update', {}); } catch (e) { return fail(e); }
+        updateProgress(box, gone);
+      };
+      return false;
+    }
+    if (r && STEPS[r.step]) last = r.step;
+    const [pct, text] = STEPS[last];
+    const slow = (Date.now() - t0) / 1000 > 120;
+    const hint = slow && (last === 'restart' || last === 'done')
+      ? 'Qamyal не перезапустился сам. Закройте его (⌘Q) и откройте снова — новая версия уже установлена.'
+      : slow ? 'Дольше обычного — возможно, медленный интернет. Можно подождать.'
+      : 'Qamyal закроется и откроется сам, обычно меньше чем через минуту.';
+    box.innerHTML = `<div class="card upd">${icon('refresh')}<div class="grow"><b>${text}</b>
+      <div class="bar" style="margin:8px 0 6px"><i style="width:${pct}%"></i></div>
+      <div class="muted small">${hint}</div></div></div>`;
+    return true;
+  };
+  draw(null);
+  const poll = async () => {
+    let r = null;
+    try { r = await api('/api/update/run'); } catch { /* программа как раз перезапускается */ }
+    if (draw(r)) setTimeout(poll, 1000);
+  };
+  setTimeout(poll, 700);
 }
 
 /** Точка у «О приложении», когда вышла новая версия. */

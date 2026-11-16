@@ -43,9 +43,24 @@ def check(force: bool = False) -> dict:
             "version": latest.get("version", "")}
 
 
+RUN = JOBS / ".update-run.json"                 # ход обновления: его пишет mac/update.sh, читает окно
+
+
 def start() -> None:
     st = check()
     if not st.get("available"):
         raise RuntimeError("Новой версии нет")
     latest = (read_json(CACHE, {}) or {}).get("latest") or {}
-    spawn_detached(["/bin/bash", str(ROOT / "mac" / "update.sh"), RELEASE + latest["dmg"], _here()[1]], ROOT)
+    write_json(RUN, {"step": "start", "error": "", "at": time.time()})
+    # окно закрываем по номеру процесса: путь к Qamyal.app мог поменяться, и поиск по пути промахивался —
+    # окно оставалось открытым и бесконечно показывало «Скачиваю и ставлю…»
+    spawn_detached(["/bin/bash", str(ROOT / "mac" / "update.sh"), RELEASE + latest["dmg"], _here()[1],
+                    str(RUN), str(os.getppid()), str(os.getpid())], ROOT)
+
+
+def progress() -> dict:
+    """Ход идущего обновления: step = start | download | install | restart | done | error; пусто — не идёт."""
+    r = read_json(RUN, {}) or {}
+    if not r or time.time() - r.get("at", 0) > 1800:
+        return {}
+    return {**r, "ago": round(time.time() - r.get("at", 0))}

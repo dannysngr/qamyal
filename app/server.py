@@ -267,6 +267,12 @@ def update_get():
     return update.check(force=bool(request.query.get("now")))
 
 
+@app.get("/api/update/run")
+def update_run():
+    import update
+    return update.progress()
+
+
 @app.post("/api/update")
 def update_start():
     import components
