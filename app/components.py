@@ -361,13 +361,118 @@ def _head_size(url: str, ctx=None) -> int:
         return int(r.headers.get("Content-Length") or 0)
 
 
+THREADS = 6                 # одно соединение с huggingface.co из России — около 1 МБ/с; несколько сразу — в разы быстрее
+PIECE = 16 << 20            # файл качается кусками по 16 МБ: свободный поток берёт следующий кусок
+
+
+def _ranged_size(url: str, ctx=None) -> int:
+    """Размер файла, если сервер отдаёт его по частям (Range); иначе 0 — тогда качаем одним потоком."""
+    try:
+        with urllib.request.urlopen(urllib.request.Request(url, headers={"Range": "bytes=0-0"}),
+                                    timeout=30, context=ctx) as r:
+            cr = r.headers.get("Content-Range", "")
+            if r.status == 206 and "/" in cr:
+                return int(cr.rsplit("/", 1)[1])
+    except (OSError, ValueError):
+        pass
+    return 0
+
+
 def fetch(job: Job, url: str, dest: Path, size: int = 0, ctx=None) -> None:
-    """Скачать файл с докачкой (.part остаётся при обрыве и продолжается при следующем запуске)."""
+    """Скачать файл с докачкой (.part остаётся при обрыве и продолжается при следующем запуске).
+    Большие файлы — в несколько потоков; что из кусков уже скачано, хранит .part.json рядом."""
     if dest.exists():
         job.st["done"] += size or dest.stat().st_size
         return
     dest.parent.mkdir(parents=True, exist_ok=True)
     part = dest.with_name(dest.name + ".part")
+    side = part.with_name(part.name + ".json")
+    m = read_json(side, None) if side.exists() and part.exists() else None
+    total = (m or {}).get("size") or _ranged_size(url, ctx)
+    if m or total >= 2 * PIECE:
+        _fetch_pieces(job, url, part, side, total, m, ctx)
+        part.replace(dest)
+        side.unlink(missing_ok=True)
+        job.save()
+        return
+    _fetch_one(job, url, part, dest, ctx)
+
+
+def _fetch_pieces(job: Job, url: str, part: Path, side: Path, total: int, m, ctx) -> None:
+    import queue
+    import threading
+    if not m or m.get("size") != total or m.get("piece") != PIECE:
+        # .part от прежней загрузки одним потоком — её начало уже готово, куски начинаются после него
+        have = part.stat().st_size if part.exists() and not side.exists() else 0
+        if have > total:
+            have = 0
+        m = {"size": total, "piece": PIECE, "from": have, "got": [0] * -(-(total - have) // PIECE)}
+        write_json(side, m)
+    with part.open("r+b" if part.exists() else "w+b") as f:
+        f.truncate(total)                         # место под весь файл: каждый поток пишет в свой участок
+    base, got = m["from"], m["got"]
+    start = job.st["done"]
+    lock = threading.Lock()
+    errors = []
+    todo = queue.Queue()
+    for i, g in enumerate(got):
+        if base + i * PIECE + g < min(total, base + (i + 1) * PIECE):
+            todo.put(i)
+
+    def work():
+        with open(part, "r+b", buffering=0) as f:      # без буфера: записанное сразу у системы, .part.json не врёт
+            while not errors:
+                try:
+                    i = todo.get_nowait()
+                except queue.Empty:
+                    return
+                a, b = base + i * PIECE, min(total, base + (i + 1) * PIECE)
+                for attempt in range(1, 8):
+                    pos = a + got[i]
+                    if pos >= b or errors:
+                        break
+                    req = urllib.request.Request(url, headers={"Range": f"bytes={pos}-{b - 1}"})
+                    try:
+                        with urllib.request.urlopen(req, timeout=60, context=ctx) as r:
+                            if r.status != 206:
+                                raise RuntimeError("Сервер перестал отдавать файл по частям. Нажмите «Продолжить».")
+                            f.seek(pos)
+                            while pos < b:
+                                buf = r.read(min(1 << 16, b - pos))
+                                if not buf:
+                                    break
+                                f.write(buf)
+                                pos += len(buf)
+                                with lock:
+                                    got[i] = pos - a
+                    except OSError as e:
+                        if attempt == 7 or isinstance(getattr(e, "reason", e), ssl.SSLCertVerificationError):
+                            errors.append(e)
+                            return
+                        time.sleep(min(30, 3 * attempt))
+                    except RuntimeError as e:
+                        errors.append(e)
+                        return
+                if a + got[i] < b and not errors:
+                    errors.append(RuntimeError("Связь всё время обрывается. Нажмите «Продолжить» позже."))
+
+    threads = [threading.Thread(target=work, daemon=True) for _ in range(THREADS)]
+    for t in threads:
+        t.start()
+    while any(t.is_alive() for t in threads):
+        time.sleep(0.5)
+        with lock:
+            snap = list(got)
+        write_json(side, {**m, "got": snap})
+        job.st["done"] = start + base + sum(snap)
+        job.save(force=False)
+    write_json(side, {**m, "got": got})
+    if errors:
+        raise errors[0]
+
+
+def _fetch_one(job: Job, url: str, part: Path, dest: Path, ctx) -> None:
+    """Одним потоком — для мелких файлов и серверов без докачки."""
     start = job.st["done"]
     for attempt in range(1, 8):
         have = part.stat().st_size if part.exists() else 0
