@@ -1160,7 +1160,7 @@ def settings_set():
     s = load_settings()
     allowed = {"editor", "claude_model", "codex_model", "openai_url", "openai_model", "whisper", "user_name",
                "notify", "theme", "lang", "rec_source", "rec_live", "rec_service", "mic_device", "mini_top",
-               "rec_screen", "rec_screen_quality", "rec_screen_monitor"}
+               "rec_screen", "rec_screen_quality", "rec_screen_monitor", "prompter"}
     s.update({k: v for k, v in body().items() if k in allowed})
     save_settings(s)
     return {"settings": s}

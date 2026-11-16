@@ -95,6 +95,7 @@ class Recorder:
         self.levels = {"mic": 0.0, "system": 0.0}
         self.error = ""
         self.live = None
+        self.prompter = None
         self.speakers = None
         self.service = ""
         self.t0 = None              # якоря «секунда записи ↔ время на часах» (старт и после каждой паузы)
@@ -159,6 +160,12 @@ class Recorder:
             if live:
                 from live import LiveProcess
                 self.live = LiveProcess()
+                try:                                 # суфлёр слушает живую расшифровку; он необязателен
+                    import prompter
+                    if prompter.available():
+                        self.prompter = prompter.Prompter(self.live, self.name)
+                except Exception:  # noqa: BLE001
+                    self.prompter = None
                 PAUSE.write_text(str(os.getpid()))   # обработчику — пауза, процессор нужен здесь
 
     def pause(self):
@@ -265,6 +272,7 @@ class Recorder:
                 self.state = "idle"
                 self.last_job = job
                 self.live = None                 # процесс живой расшифровки завершён — его память вернулась системе
+                self.prompter = None
             return job
 
     def _finish(self, discard: bool):
@@ -278,6 +286,7 @@ class Recorder:
         scout_log = self._quietly(self._stop_scout)
         hints_log = self.path.with_suffix(".hints.jsonl")
         dom_log = self.path.with_suffix(".domscout.jsonl")
+        hints = (self._quietly(self.prompter.stop) if self.prompter else None) or []
         live_segs = (self._quietly(self.live.stop) if self.live else None) or []
         PAUSE.unlink(missing_ok=True)
         job = None
@@ -309,6 +318,8 @@ class Recorder:
             dr = job / "черновики"            # задание уже в очереди — подсказки к нему необязательны
             if live_segs:
                 self._quietly(lambda: write_json(dr / "живая.json", live_segs))
+            if hints:
+                self._quietly(lambda: write_json(dr / "суфлёр.json", hints))
             for log, name in ((skype_log, "skype.jsonl"), (scout_log, "разведка-окон.jsonl"),
                               (hints_log, "говорящие.jsonl"), (dom_log, "разведка-браузера.jsonl")):
                 if log and log.exists():
@@ -505,6 +516,8 @@ class Recorder:
             st["live_from"] = live_from
             st["live_lag"] = self.live.lag(self.frames / SR)
             st["live_ready"] = self.live.ready
+        if self.prompter:
+            st["prompter"] = self.prompter.status()
         if self.last_job is not None and self.state == "idle":
             from common import job_id
             st["last_job"] = job_id(self.last_job)

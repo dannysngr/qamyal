@@ -649,4 +649,10 @@ const I18N_ROWS = [
   ['Записи остаются на компьютере: в чат уходит только то, что нужно для ответа.', 'Recordings stay on this computer: only what is needed for an answer goes to the chat.', 'ДӀаяздарш компьютерехь дуьсу: чате жоп дала оьшург бен ца доьду.'],
   ['{x}: подключено — перезапустите программу, чтобы она увидела записи', '{x}: connected — restart it so it can see your recordings', '{x}: вовшахтоьхна — программа юха схьаелла, дӀаяздарш гуш хилийта'],
   ['{x}: отключено', '{x}: disconnected', '{x}: дӀасакъастийна'],
+  ['Суфлёр', 'Prompter', 'Суфлёр'],
+  ['жду вопросов', 'waiting for questions', 'хаттаршка хьоьжу'],
+  ['Определяю проект…', 'Working out the project…', 'Проект билгалйоккху…'],
+  ['Готовлю подсказку…', 'Preparing a hint…', 'Хьехам кечбо…'],
+  ['Подсказывать ответы во время записи', 'Suggest answers while recording', 'ДӀаязъечу хенахь жоьпаш хьеха'],
+  ['Когда идёт живая расшифровка, Claude сам понимает, о каком проекте разговор, ловит вопросы и подсказывает ответ по прошлым встречам. Нужен Claude Code; во время записи уходит текст живой расшифровки.', 'During live transcription, Claude works out which project the conversation is about, catches questions and suggests answers from past meetings. Requires Claude Code; the live transcript text is sent while recording.', 'Дийна расшифровка йолчу хенахь Claude-с ша кхета къамел муьлхачу проектах лаьцна ду, хаттарш лаьцна, хьалхарчу цхьаьнакхетарийн буха тӀехь жоп хьоьху. Claude Code оьшу; дӀаязъечу хенахь дийнчу расшифровкан текст доьду.'],
 ];

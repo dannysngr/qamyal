@@ -423,11 +423,12 @@ function pageRec() {
   </div>`;
   $('#upl').onclick = pickFiles;
   let cfg = { rec_source: 'mic', rec_live: true, rec_service: 'skype' }, services = {}, skypeProbe = false, scr = { supported: false, monitors: [] };
-  let mode = null, liveFrom = 0, marksN = -1, lastJob = null, sysHeard = Date.now();
+  let mode = null, liveFrom = 0, marksN = -1, hintsN = -1, lastJob = null, sysHeard = Date.now();
   api('/api/settings').then(r => { if (gone()) return; cfg = r.settings; services = r.services || {}; skypeProbe = !!r.skype_probe; scr = r.screen || scr; if (mode === 'idle') renderIdle(); }).catch(() => {});
 
   function renderIdle() {
     mode = 'idle';
+    $('.rec-layout').classList.remove('active');
     const src = cfg.rec_source;
     $('#rm').innerHTML = `
       <div class="field">
@@ -506,7 +507,7 @@ function pageRec() {
         $('#go').disabled = true;
         await api('/api/rec/start', { source: cfg.rec_source, name: $('#rname').value, live: $('#rlive').checked, speakers, service: cfg.rec_service,
           screen: !!($('#rscr') && $('#rscr').checked), screen_quality: cfg.rec_screen_quality || 'normal', monitor: cfg.rec_screen_monitor || 0 });
-        liveFrom = 0; marksN = -1; lastJob = null;
+        liveFrom = 0; marksN = -1; hintsN = -1; lastJob = null;
         tick();
       } catch (e) { if ($('#go')) $('#go').disabled = false; fail(e); }
     };
@@ -522,6 +523,8 @@ function pageRec() {
 
   function renderActive(st) {
     mode = 'active';
+    hintsN = -1;
+    $('.rec-layout').classList.add('active');        // во время записи шире правая колонка: суфлёр и живой текст
     const both = st.source === 'both';
     $('#rm').innerHTML = `
       <div class="rec-go"><button class="bigbtn stop" id="stop" title="Стоп и расшифровать">${icon('stop')}</button>
@@ -556,7 +559,9 @@ function pageRec() {
     };
     $('#rs').classList.toggle('tip', !st.live);
     $('#rs').innerHTML = st.live
-      ?`<div class="live-head"><h2 style="margin:0">Живая расшифровка</h2><span class="grow"></span><span class="small muted" id="lag"></span></div>
+      ?`<div class="sufl" id="sf" hidden><div class="sufl-head">${icon('spark')}<b>Суфлёр</b><span class="small muted" id="sfp"></span>
+           <span class="grow"></span><span class="small muted" id="sfs"></span></div><div class="sufl-list" id="sfl"></div></div>
+         <div class="live-head"><h2 style="margin:0">Живая расшифровка</h2><span class="grow"></span><span class="small muted" id="lag"></span></div>
          <div class="live-text" id="lt"></div><div class="live-pending" id="lp"></div>`
       : `<h2>Живая расшифровка выключена</h2><div class="muted">Текст появится после остановки записи — в полной расшифровке.</div>`;
     if (both) $('#rm').classList.add('both');
@@ -626,6 +631,17 @@ function pageRec() {
       $('#lp').textContent = !st.live_ready ? 'Загружаю модель распознавания…' : st.state === 'recording' ? 'Слушаю…' : '';
       $('#lag').textContent = st.live_ready && st.live_lag > 4 ? `отстаёт на ${Math.round(st.live_lag)} с` : '';
     }
+    const pr = st.prompter;
+    if (pr && $('#sf')) {
+      $('#sf').hidden = false;
+      $('#sfp').textContent = pr.project ? '· ' + pr.project : '';
+      $('#sfs').innerHTML = pr.error ? `<span style="color:var(--rec)">${esc(pr.error)}</span>` : esc(pr.busy || (pr.hints.length ? '' : 'жду вопросов'));
+      if (pr.hints.length !== hintsN) {
+        hintsN = pr.hints.length;
+        $('#sfl').innerHTML = pr.hints.slice().reverse().map((h, k) => `<div class="sufl-hint${k ? '' : ' new'}">
+          <div class="q"><span class="t">${fmtT(h.t)}</span>${esc(h.q)}</div><div class="a">${esc(h.a)}</div></div>`).join('');
+      }
+    }
   }
 
   const onKey = e => {
@@ -672,7 +688,7 @@ function pageMini() {
       <button class="btn ghost mini-ic" id="mmain" title="Открыть Qamyal">${icon('grow')}</button></div>
     <div class="bar" id="mbar"><i></i></div></div>`;
   const SRC = { mic: 'Разговор', both: 'Созвон', system: 'Звук ПК' };
-  let state = '', busy = false, src = '', lastWork = '', screenOk = false, scrCfg = {};
+  let state = '', busy = false, src = '', lastWork = '', screenOk = false, scrCfg = {}, hint = null;
   const loadSrc = () => api('/api/settings').then(r => {
     const s = r.settings;
     screenOk = !!(r.screen && r.screen.supported);
@@ -706,6 +722,9 @@ function pageMini() {
       $('#mt').classList.toggle('muted', !active);
       $('#mst').innerHTML = st.error ? `<span style="color:var(--rec)">${esc(st.error)}</span>`
         : state === 'paused' ? 'Пауза' : active ? `<span style="color:var(--rec)">● Идёт запись${st.screen ? ' · экран' : ''}</span>` : esc(src);
+      const hs = active && st.prompter ? st.prompter.hints : [];      // свежая подсказка суфлёра — вместо хода обработки
+      hint = hs.length && Date.now() / 1000 - hs[hs.length - 1].at < 180 ? hs[hs.length - 1] : null;
+      work();
     } catch { /* программа перезапускается — следующий опрос покажет */ } finally { busy = false; }
   }
 
@@ -713,7 +732,9 @@ function pageMini() {
     if (!ST) return;
     let h, pct = -1, busyBar = false;     // pct < 0 — полоски нет
     // одна строка и тонкая полоска внизу окна: подробности — в основном окне и в подсказке
-    if (ST.download) {
+    if (hint) {
+      h = `<span class="mini-hint" title="${esc(hint.q + ' — ' + hint.a)}">${icon('spark')}${esc(hint.a)}</span>`;
+    } else if (ST.download) {
       const dl = ST.download;
       pct = dl.total ? Math.min(100, Math.round(dl.done * 100 / dl.total)) : 100;
       busyBar = !dl.total;
@@ -744,6 +765,7 @@ function pageMini() {
   $('#mscr').onclick = () => api('/api/rec/screen', { on: $('#mscr').dataset.on !== '1', ...scrCfg }).then(tick).catch(fail);
   $('#mpz').onclick = () => api('/api/rec/' + (state === 'paused' ? 'resume' : 'pause'), {}).then(tick).catch(fail);
   $('#mmain').onclick = () => miniAction('main').catch(fail);
+  $('#mw').onclick = () => { if (hint) miniAction('main').catch(fail); };    // подсказка целиком — в основном окне
   const showTop = on => {
     $('#mtop').classList.toggle('on', on);
     $('#mtop').title = on ? 'Поверх всех окон: включено' : 'Поверх всех окон: выключено';
@@ -1754,6 +1776,8 @@ async function pageSettings() {
       <label class="radio"><input type="radio" name="ed" value="none" ${s.editor === 'none' ? 'checked' : ''}><span><b>Без редактора</b><br><span class="help">Ничего не уходит с компьютера: итог — черновик GigaAM с заменами из словаря. Вопросы и письма недоступны.</span></span></label></div></div>
     <div class="row"><label>Второй черновик</label><div><label class="switch"><input type="checkbox" id="wh" ${s.whisper ? 'checked' : ''}><i></i>Распознавать ещё и Whisper</label>
       <div class="help">Лучше английские слова и имена. Без него обработка почти вдвое быстрее.</div></div></div>
+    <div class="row"><label>Суфлёр</label><div><label class="switch"><input type="checkbox" id="pf" ${s.prompter !== false ? 'checked' : ''} ${s.editor === 'claude' ? '' : 'disabled'}><i></i>Подсказывать ответы во время записи</label>
+      <div class="help">Когда идёт живая расшифровка, Claude сам понимает, о каком проекте разговор, ловит вопросы и подсказывает ответ по прошлым встречам. Нужен Claude Code; во время записи уходит текст живой расшифровки.</div></div></div>
     <div class="row"><label>Микрофон</label><div><select class="input" id="mc" style="max-width:420px"><option value="">По умолчанию (${esc(d.default_mic || '—')})</option>
       ${(d.mics || []).map(m => `<option ${m === s.mic_device ? 'selected' : ''}>${esc(m)}</option>`).join('')}</select>
       ${d.error ? `<div class="help err" style="color:var(--rec)">${esc(d.error)}</div>` : ''}</div></div>
@@ -1792,6 +1816,7 @@ async function pageSettings() {
   $('#ou').onchange = e => put({ openai_url: e.target.value.trim() });
   $('#om').onchange = e => put({ openai_model: e.target.value.trim() });
   $('#wh').onchange = e => put({ whisper: e.target.checked });
+  $('#pf').onchange = e => put({ prompter: e.target.checked });
   $('#mc').onchange = e => put({ mic_device: e.target.value });
   $('#nt').onchange = e => put({ notify: e.target.checked });
   $$('#th button').forEach(b => b.onclick = () => {

@@ -74,6 +74,8 @@ html.mini #side { display: none; }
 .mini-foot { display: flex; align-items: center; gap: 2px; font-size: 11.5px; height: 26px; }
 .mini-work { flex: 1; min-width: 0; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .mini-work svg.i { width: 13px; height: 13px; vertical-align: -2px; margin-right: 4px; color: var(--ok); }
+.mini-work .mini-hint { color: var(--text); cursor: pointer; }
+.mini-work .mini-hint svg.i { color: var(--accent); }
 .mini-ic { padding: 4px 5px; border: 0; color: var(--muted); }
 .mini-ic svg.i { width: 15px; height: 15px; }
 .mini-ic.on { color: var(--accent); background: var(--accent-soft, rgba(47, 111, 237, .12)); }
@@ -224,6 +226,7 @@ kbd { font: 12px var(--font); border: 1px solid var(--line); border-bottom-width
 
 /* ---------- диктофон ---------- */
 .rec-layout { display: grid; grid-template-columns: minmax(340px, 600px) minmax(280px, 1fr); gap: 16px; align-items: stretch; }
+.rec-layout.active { grid-template-columns: minmax(340px, 440px) minmax(320px, 1fr); }
 .rec-layout > .card { margin-top: 0; }          /* обе карточки — с одного верха и одной высоты */
 .rec-main { padding: 14px 18px; }
 .rec-page { padding-bottom: 12px; }            /* диктофон помещается в окно без прокрутки */
@@ -257,6 +260,15 @@ kbd { font: 12px var(--font); border: 1px solid var(--line); border-bottom-width
 .live-line { padding: 5px 0; display: grid; grid-template-columns: 54px 1fr; gap: 8px; }
 .live-line .t { color: var(--muted); font-size: 12.5px; font-variant-numeric: tabular-nums; padding-top: 1px; }
 .live-pending { color: var(--muted); font-style: italic; padding: 6px 0 0 62px; }
+.sufl { margin-bottom: 12px; padding: 10px 12px; border-radius: 10px; background: var(--accent-soft, rgba(47, 111, 237, .08)); }
+.sufl-head { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; flex-wrap: wrap; }
+.sufl-head svg.i { color: var(--accent); }
+.sufl-list { display: grid; gap: 8px; max-height: 38vh; overflow: auto; }
+.sufl-hint { padding: 7px 10px; border-radius: 8px; background: var(--panel); border: 1px solid var(--line); }
+.sufl-hint.new { border-color: var(--accent); }
+.sufl-hint .q { font-size: 12.5px; color: var(--muted); }
+.sufl-hint .q .t { font-variant-numeric: tabular-nums; margin-right: 6px; }
+.sufl-hint .a { margin-top: 2px; line-height: 1.45; }
 
 /* ---------- записи ---------- */
 .jobcard { cursor: pointer; display: flex; flex-direction: column; gap: 8px; min-height: 150px; transition: border-color .15s; }
@@ -431,6 +443,6 @@ textarea.gloss { width: 100%; min-height: 56vh; font: 13.5px/1.55 Consolas, "Cas
   .job-grid { grid-template-columns: 1fr; }
   .side-col { position: static; max-height: none; }
 }
-@media (max-width: 920px) { .rec-layout { grid-template-columns: 1fr; } }
+@media (max-width: 960px) { .rec-layout, .rec-layout.active { grid-template-columns: 1fr; } }
 
 #scrbtn.on, #mscr.on { color: var(--rec); border-color: var(--rec); }

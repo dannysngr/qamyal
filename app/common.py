@@ -66,6 +66,7 @@ DEFAULT_SETTINGS = {
     "lang": "ru",                            # язык интерфейса: ru | en | ce (нохчийн)
     "rec_source": "mic",                     # mic | system | both
     "rec_live": True,                        # живая расшифровка во время записи
+    "prompter": True,                        # суфлёр: подсказки на вопросы во время записи (нужны живая расшифровка и Claude)
     "rec_service": "skype",                  # через что созвон (см. SERVICES)
     "rec_screen": False,                     # писать экран вместе со звуком
     "rec_screen_quality": "normal",          # low | normal | high (screen.QUALITY)
